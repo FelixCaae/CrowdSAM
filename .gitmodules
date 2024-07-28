@@ -1,0 +1,3 @@
+[submodule "dinov2"]
+	path = dinov2
+	url = https://github.com/facebookresearch/dinov2

@@ -1,0 +1,42 @@
+environ:
+  seed: 42
+  device: 'cuda'
+  output_dir: './outputs/sam_vit_l_crowdhuman_val'
+data:
+  dataset: 'crowdhuman'
+  dataset_root: './datasets/crowdhuman'
+  json_file: "datasets/crowdhuman/midval_visible_100.json"
+  odgt_file: "annotation_val.odgt"
+model:
+  dino_repo: '../dinov2'
+  dino_model: 'dinov2_vitl14'
+  sam_checkpoint: '../segment-anything/sam_vit_l_0b3195.pth'
+  sam_model: "adaptvit_l"
+  sam_adapter_checkpoint: "./sam_adapter_weights/10_shot.pth"
+  n_class: 1
+  max_size: 1024
+train:
+  default: 0
+test:
+  #data
+  #forward options
+  pos_sim_thresh: 0.5
+  apply_box_offsets: False
+  grid_size: 192
+  max_prompts: 500
+  points_per_batch: 32
+  mask_selection: "max_iou"
+  max_size: 1024
+  #post processing
+  min_mask_region_area: 100
+  box_nms_thresh: 0.6
+  stability_score_thresh: 0.9
+  stability_score_offset: 1
+  pred_iou_thresh: 0.2
+  #cropping 
+  crop_n_layers: 1
+  crop_nms_thresh: 0.7
+  crop_overlap_ratio: 0.341 #512/1500
+vis:
+  vis_thresh: 0.5
+
