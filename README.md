@@ -23,10 +23,11 @@ conda create -n crowdsam python=3.9
    git submodule update
    ```
 3. Download Pretrained DINOv2 weights and SAM weights:
-   - Download [DINOv2 Vit-L](https://github.com/facebookresearch/dinov2)
-   - Download [SAM Vit-L](https://github.com/facebookresearch/segment-anything).
+   - Download DINOv2 [weights](https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth)
+   - Download SAM [weights](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth).
      
    We use Vit-L for both models and please download the corresponding checkpoints.
+   
 ## Preparing Data
 
 Download the CrowdHuman dataset from the [official website](https://www.crowdhuman.org) and place it in the `data` directory:
