@@ -7,24 +7,26 @@ For more details, read the [paper here](https://arxiv.org/abs/2407.11464)
 
 ## Important notes
 This repository is still under-working to be better for users. Feel free to ask any questions in the issue!
+
 ## Installation
 To set up Crowd-SAM, follow these steps:
 1. Create environment
 ```
 conda create -n crowdsam python=3.9
-pip install -r requirements.txt
 ```
-2. Install DINOv2 and SAM:
-   - [DINOv2 Installation Guide](https://github.com/facebookresearch/dinov2)
-   - Follow the instructions for [SAM installation](https://github.com/facebookresearch/segment-anything).
-     
-   We use Vit-L for both models and please download the corresponding checkpoints.
-3. Clone this repository:
+
+2. Clone this repository:
    ```bash
    git clone https://github.com/yourusername/crowd-sam.git
    cd crowd-sam
+   pip install -r requirements.txt
+   git submodule update
    ```
-
+3. Download Pretrained DINOv2 weights and SAM weights:
+   - Download [DINOv2 Vit-L](https://github.com/facebookresearch/dinov2)
+   - Download [SAM Vit-L](https://github.com/facebookresearch/segment-anything).
+     
+   We use Vit-L for both models and please download the corresponding checkpoints.
 ## Preparing Data
 
 Download the CrowdHuman dataset from the [official website](https://www.crowdhuman.org) and place it in the `data` directory:
