@@ -9,6 +9,7 @@ datasets*
 *output*
 *.jpg
 *.json
+*.pth
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

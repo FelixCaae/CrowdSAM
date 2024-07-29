@@ -13,8 +13,6 @@ import torch.nn.functional as F
 import torchvision.ops as ops 
 from torchvision.ops.boxes import box_area
 
-from sklearn import mixture
-from sklearn.cluster import KMeans
 from PIL import Image
 from matplotlib import pyplot as plt
 from coco_names import coco_classes
@@ -397,13 +395,12 @@ def load_img_and_annotation(dataset_path, annots, dataset, id=0):
     else:
         raise NotImplementedError
     #load image
-    image = Image.open(img_path).convert('RGB')
     image_cv = cv2.imread(img_path)
     image_cv = cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB)
     bboxes = np.array([ annot['bbox'] for annot in annots['annotations'] if annot['image_id'] ==img_meta['id']])
     bboxes[...,2:] += bboxes[...,:2]
     img_id = img_meta['id']    
-    return image, image_cv, bboxes, img_id 
+    return image_cv, bboxes, img_id 
 
 def is_validbox(box):
     #[x_1,y_1,x_2,y_2]

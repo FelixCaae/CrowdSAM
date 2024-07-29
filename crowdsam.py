@@ -4,16 +4,13 @@ import torch.nn.functional as F
 
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
-import cv2
-from matplotlib import pyplot as plt
 import utils
 from PIL import Image
-import logging 
 import torch.nn as nn
 from loguru import logger
 import math
 from torchvision.ops.boxes import batched_nms, box_area
-from segment_anything.utils.amg import (
+from segment_anything_cs.utils.amg import (
     MaskData,
     batch_iterator,
     batched_mask_to_box,
@@ -23,20 +20,7 @@ from segment_anything.utils.amg import (
     mask_to_rle_pytorch,
     coco_encode_rle,
 )
-class Resize(nn.Module):
-    def __init__(self, patch_size):
-        self.patch_size = patch_size
-        
-    def __call__(self, image):
-        # 计算需要添加的padding数量  
-        h_p = (self.patch_size - image.size[1] % self.patch_size) % self.patch_size  
-        w_p = (self.patch_size - image.size[0] % self.patch_size) % self.patch_size  
-        w,h = image.size        
-        # 使用numpy的pad函数添加padding  
-        # padded_image = np.pad(image, ((0,height_padding), (0,width_padding),(0,0)), mode='constant',constant_values=0)
-        # new_image =  F.interpolate(image, (h+height_padding, w+width_padding))
-        return image.resize((w_p+w, h_p+h), Image.BILINEAR)
-    
+
 class CrowdSAM():
     vis_img_id = 0
     def __init__(self,config,logger):
@@ -46,7 +30,10 @@ class CrowdSAM():
         legacy_mode = False
         self.train_free=False
         #model 
-        dino_model =  torch.hub.load(config['model']['dino_repo'],config['model']['dino_model'], source='local').to(self.device)
+        dino_model =  torch.hub.load(config['model']['dino_repo'],
+                                    config['model']['dino_model'],
+                                    source='local',pretrained=False).to(self.device)
+        dino_model.load_state_dict(torch.load(config['model']['dino_checkpoint'], weights_only=True))
         self.predictor =self.load_sam_model(config['model']['sam_model'], 
                                             config['model']['sam_arch'],
                                             config['model']['sam_checkpoint'], 
@@ -197,9 +184,7 @@ class CrowdSAM():
             data["segmentations"] = [coco_encode_rle(rle) for rle in data["rles"]] 
         else:
             data['segmentations'] = []
-        # if self.visualize:
-        #     self.visualize_inter_results(np.array(image), crop_boxes, self.adapted_boxes, sim_map)
-        # del self.adapted_boxes
+
         data.to_numpy()    
         return data
     
@@ -222,14 +207,7 @@ class CrowdSAM():
             sim_map = sim_map.sigmoid().max(dim=1)[0]
             sim_map = sim_map[0,:feat_size[0], :feat_size[1]]
             sim_thresh =self.pos_sim_thresh
-            visualize = False
-            if visualize:
-                # plt.imshow(self.orig_image)
-                sim_map_vis = F.interpolate(sim_map.unsqueeze(0).unsqueeze(0), (orig_h,orig_w),mode='bilinear')[0,0].cpu()
-                sim_map_vis = (sim_map_vis*255).int()
-                img = utils.draw_mask(self.orig_image, sim_map_vis)
-                plt.imshow(img)
-                plt.savefig('test.jpg')
+        
         else:
         #used when  dino_feats = self.predictor.dino_feats
             transform = T.Compose([

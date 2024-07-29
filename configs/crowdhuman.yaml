@@ -9,14 +9,16 @@ data:
   train_file: './datasets/crowdhuman/train_visible.json'
   odgt_file: "./datasets/crowdhuman/annotation_val.odgt"
 model:
-  dino_repo: '../dinov2'
+  dino_repo: './dinov2'
+  dino_checkpoint: './weights/dinov2_vitl14_pretrain.pth'
   dino_model: 'dinov2_vitl14'
-  sam_checkpoint: '../segment-anything/sam_vit_l_0b3195.pth'
+  sam_checkpoint: './weights/sam_vit_l_0b3195.pth'
   sam_model: "vit_l"
   sam_arch: 'crowdsam'
-  sam_adapter_checkpoint: "./sam_adapter_weights/10_shot.pth"
+  sam_adapter_checkpoint: "./adapter_weights/10_shot.pth"
   n_class: 1
   max_size: 1024
+  trainfree: False
 train:
   default: 0
   n_shot: 10
@@ -26,7 +28,7 @@ train:
   lr: 0.00001
   optimizer: 'adamw'
   weight_decay: 0.0001
-  save_path: 'sam_adapter_weights/10_shot.pth'
+  save_path: 'adapter_weights/10_shot.pth'
 test:
   output_rles: False
   #cropping 
