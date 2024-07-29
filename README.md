@@ -26,7 +26,7 @@ conda create -n crowdsam python=3.9
    - Download DINOv2 [weights](https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth)
    - Download SAM [weights](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth).
      
-   We use Vit-L for both models and please download the corresponding checkpoints.
+   We use Vit-L for both models and please download the corresponding checkpoints. Place the donwdloaded weights in the  *weights* directory.
    
 ## Preparing Data
 
