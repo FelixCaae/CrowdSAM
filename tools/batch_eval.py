@@ -4,15 +4,17 @@ import concurrent.futures
 import argparse
 import json
 import yaml
-def run_script(start_idx, end_idx, save_dir, exec_file,config_file, options):
+def run_script(start_idx, end_idx, rank, save_dir, exec_file,config_file, options):
     cmd = [
-        'srun', '-c', '4', '--mem', '40G', '--gres=gpu:1', 
+        
+        # 'srun', '-c', '4', '--mem', '40G', '--gres=gpu:1', 
         'python', exec_file, 
         '--config_file', config_file,
-        '--output_dir', f'vis_output/{save_dir}', 
+        '--save_path', f'temp_result_{rank}.json', 
         *options.split(), 
         '--start_idx', str(start_idx), 
-        '--num_imgs', str(end_idx)
+        '--end_idx', str(end_idx),
+        '--local_rank', str(rank)
     ]
     print(f"Running command: {' '.join(cmd)}")
     subprocess.run(cmd)
@@ -61,8 +63,6 @@ def convert_to_coco(det_result, gt_js):
 def main():
     parser = argparse.ArgumentParser(description="Run multiple Python scripts concurrently")
     parser.add_argument('--num_nodes', type=int,  default=4, help='Number of nodes to use')
-    # parser.add_argument('--annot_file', type=str, default="datasets/crowdhuman/midval_visible_100.json", help='Annotation file path')
-    # parser.add_argument('--odgt_file', type=str, default="datasets/crowdhuman/annotation_val.odgt", help='ODGT file path')
     parser.add_argument('--config_file', default='./configs/crowdhuman.yaml')
     parser.add_argument('--options', type=str, default="", help='Additional options for the Python script')
     args = parser.parse_args()
@@ -86,33 +86,21 @@ def main():
         for i in range(num_nodes):
             start_idx = i * batch_size
             end_idx = (i + 1) * batch_size
-            save_dir = f"batch_run_{i}"
-            print(f"{start_idx}, {end_idx}, {save_dir}")
-            futures.append(executor.submit(run_script, start_idx, end_idx, save_dir, exec_file, config_file, options))
-
+            save_dir = f"."
+            futures.append(executor.submit(run_script, start_idx, end_idx, i,  save_dir, exec_file, config_file, options))
         # Wait for all futures to complete
         concurrent.futures.wait(futures)
 
     # Merge JSON results
-    json_list = [f"vis_output/batch_run_{i}/result.json" for i in range(num_nodes)]
-    # merge_cmd = f"python tools/merge_json.py final.json {json_list}"
+    json_list = [f"temp_result_{i}.json" for i in range(num_nodes)]
     merged_result = merge_json(json_list)
     
-
     coco_json = convert_to_coco(merged_result, gt_js)
     json.dump(coco_json, open('test.json','w'), ensure_ascii=True)
-    # print(f"Merging results with command: {merge_cmd}")
-    # subprocess.run(merge_cmd, shell=True)
 
-    # Test with visible flag
-    # convert_cmd = f"python tools/convert2coco.py -d final.json -o test.json -g {annot_file} --ref_img_id_type str"
     eval_cmd = f"python tools/crowdhuman_eval.py -d test.json -g {odgt_file} --remove_empty_gt --visible_flag"
-    # print(f"Converting with command: {convert_cmd}")
-    # subprocess.run(convert_cmd, shell=True)
     print(f"Evaluating with command: {eval_cmd}")
     subprocess.run(eval_cmd, shell=True)
-
-    # Remove temporary test.json file
     os.remove("test.json")
     print("All processes done")
 

@@ -10,7 +10,7 @@ def make_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-d", '--data-path',
-        default="Images",
+        default="dataset/crowdhuman",
         type=str,
         help='the path of CrowdHuman dataset'
     )
@@ -28,8 +28,7 @@ def make_parser():
     )
     parser.add_argument(
         "-v", "--visible",
-        default=0,
-        type=int,
+        action='store_true',
         help="keep visible box",
     )
     parser.add_argument(
@@ -207,7 +206,10 @@ def crowdhuman2coco(args, odgt_path, json_path, data_path):
 def main():
     parser = make_parser()
     args = parser.parse_args()
-    crowdhuman2coco(args, args.odgt_path, args.save_path, args.data_path)
+    img_path = os.path.join(args.data_path, 'Images')
+    odgt_path = os.path.join(args.data_path, args.odgt_path)
+    save_path = os.path.join(args.data_path, args.save_path)
+    crowdhuman2coco(args, odgt_path, save_path ,img_path)
 
 
 if __name__ == "__main__":

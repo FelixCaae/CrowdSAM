@@ -113,7 +113,7 @@ class SamPredictor:
           
           # import pdb;pdb.set_trace()
           input_image = torch.nn.functional.interpolate(input_image, (1022,1022), mode='bilinear')
-          features_dict = self.dino_model.forward_features(  input_image.cuda())
+          features_dict = self.dino_model.forward_features( input_image.cuda())
           self.dino_feats = features_dict['x_norm_patchtokens'].view(1, 73, 73, -1)
         
           self.is_image_set = True

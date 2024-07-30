@@ -10,8 +10,7 @@ from utils import ( setup_logger,
                    draw_box, draw_mask, draw_point)
 
 
-parser = argparse.ArgumentParser(description="可写可不写，只是在命令行参数出现错误的时候，随着错误信息打印出来。")
-
+parser = argparse.ArgumentParser(description="")
 parser.add_argument('--image_dir',type=str, default="demo")
 parser.add_argument('--dino_repo',type=str, default='../dinov2')
 parser.add_argument('--sam_checkpoint',type=str, default='../segment-anything/sam_vit_l_0b3195.pth')

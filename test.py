@@ -4,9 +4,33 @@ import sys
 import json
 from tqdm import tqdm
 from crowdsam import CrowdSAM
-from utils import (load_img_and_annotation,
-                   data_meta, envrion_init,
+import numpy as np
+import torch
+from utils import (load_img_and_annotation, setup_logger,
+                   data_meta, load_config,
                    visualize_result,evaluate_boxes)
+import argparse
+def envrion_init():
+    parser = argparse.ArgumentParser(description="CrowdSAM argparser")
+    parser.add_argument('--mode', type=str, choices=['seg', 'ref_only'], default='seg')
+    #data related
+    parser.add_argument('--start_idx',type=int, default=0)
+    parser.add_argument('--end_idx',type=int, default=-1) # -1 represents using all images
+    parser.add_argument('-c','--config_file', type=str, default='./configs/crowdhuman.yaml')
+    parser.add_argument('-v','--visualize',help='visualize the outputs', action="store_true")
+    parser.add_argument('-s','--save_path',help='the path to dump json result', type=str, default="")
+    parser.add_argument('-r','--local_rank', type=int, default=0)
+    # parser.add_argument('--dataset',type=str, default="crowdhuman")
+    args = parser.parse_args()
+
+    configs = load_config(args.config_file)
+    np.random.seed(configs['environ']['seed'])
+    torch.random.manual_seed(configs['environ']['seed'])
+    os.makedirs(configs['environ']['output_dir'], exist_ok=True)
+    os.makedirs(configs['environ']['output_dir'] + '/log', exist_ok=True)
+    logger = setup_logger(configs['environ']['output_dir'] + '/log') 
+    logger.info(args)
+    return args, configs, logger
 
 if __name__ == '__main__':
     #===========>set arguments or options 
@@ -14,19 +38,21 @@ if __name__ == '__main__':
     #==========>load data meta infos
     dataset_path = config['data']['dataset_root']
     n_class, class_names = data_meta[config['data']['dataset']][1:]
+    if 'cuda' in config['environ']['device']:
+        torch.cuda.set_device(args.local_rank) 
+        config['environ']['device'] =  f'cuda:{args.local_rank}'
     #===========>configure model
-    lc = CrowdSAM(config,logger)
-    output_file = 'result.json'
+    model = CrowdSAM(config, logger)
     # annot_path = os.path.join(dataset_path[args.dataset], args.label_file)
     annot_path = config['data']['json_file']
     #===========> A simple data loading strategy that can be replaced with a DDP dataloader in the future update.
     logger.info('load images and annotations from crowdhuman dataset..')
     annots = json.load(open(annot_path))
-    if args.num_imgs == -1:
-        num_img = len(annots['images'])
+    if args.end_idx == -1:
+        end_idx = len(annots['images'])
     else:
-        num_img = min(args.num_imgs, len(annots['images']))
-    image_ids = [ i for i in range(args.start_idx,num_img)]
+        end_idx = min(args.end_idx, len(annots['images']))
+    image_ids = [ i for i in range(args.start_idx,end_idx)]
     #===========>run in loop and collect result
     output_content = []
     logger.info(f'total images  to process { len(image_ids)}')
@@ -34,7 +60,7 @@ if __name__ == '__main__':
         logger.debug(f'start processing {id_}')
         # load one image
         image, gt_boxes, image_id = load_img_and_annotation(dataset_path, annots, config['data']['dataset'], id_)
-        result = lc.generate(image)
+        result = model.generate(image)
         # AP, recall, = round(AP, 3), round(recall, 3)
         # FP_ind, FN_ind = None, None
         instance_dict = {'image_id':image_id,  'num_gt':len(gt_boxes)-1}
@@ -51,7 +77,11 @@ if __name__ == '__main__':
             FP_list, FN_list = evaluate_boxes(result['boxes'], result['scores'], gt_boxes, 0.5)[2:]
             visualize_result(image, result,  class_names, save_path, conf_thresh= config['vis']['vis_thresh'], FP_ind=FP_list, FN_ind=FN_list)#,  FP_ind = FP_ind, FN_ind = FN_ind)
         del result        
-        
-    file_path = os.path.join(config['environ']['output_dir'], output_file)
-    json.dump(output_content, open(file_path, 'w'), ensure_ascii=True)
+
+    if args.save_path == "":
+        file_path = os.path.join(config['environ']['output_dir'],'result.json')
+        print(f'dump json file to {file_path}')
+        json.dump(output_content, open(file_path, 'w'), ensure_ascii=True)
+    else:
+        json.dump(output_content, open(args.save_path, 'w'), ensure_ascii=True)
     

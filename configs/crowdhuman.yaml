@@ -1,20 +1,20 @@
 environ:
   seed: 42
-  device: 'cuda'
-  output_dir: './outputs/sam_vit_l_crowdhuman_val'
+  device: "cuda"
+  output_dir: "./outputs/crowdsam_vis"
 data:
-  dataset: 'crowdhuman'
-  dataset_root: './datasets/crowdhuman'
-  json_file: "./datasets/crowdhuman/midval_visible_100.json"
-  train_file: './datasets/crowdhuman/train_visible.json'
-  odgt_file: "./datasets/crowdhuman/annotation_val.odgt"
+  dataset: "crowdhuman"
+  dataset_root: "./dataset/crowdhuman"
+  json_file: "./dataset/crowdhuman/midval_visible_100.json"
+  train_file: "./dataset/crowdhuman/train_visible.json"
+  odgt_file: "./dataset/crowdhuman/annotation_val.odgt"
 model:
-  dino_repo: './dinov2'
-  dino_checkpoint: './weights/dinov2_vitl14_pretrain.pth'
-  dino_model: 'dinov2_vitl14'
-  sam_checkpoint: './weights/sam_vit_l_0b3195.pth'
+  dino_repo: "./dinov2"
+  dino_checkpoint: "./weights/dinov2_vitl14_pretrain.pth"
+  dino_model: "dinov2_vitl14"
+  sam_checkpoint: "./weights/sam_vit_l_0b3195.pth"
   sam_model: "vit_l"
-  sam_arch: 'crowdsam'
+  sam_arch: "crowdsam"
   sam_adapter_checkpoint: "./adapter_weights/10_shot.pth"
   n_class: 1
   max_size: 1024
@@ -26,9 +26,9 @@ train:
   samples_per_batch: 15
   steps: 2000
   lr: 0.00001
-  optimizer: 'adamw'
+  optimizer: "adamw"
   weight_decay: 0.0001
-  save_path: 'adapter_weights/10_shot.pth'
+  save_path: "adapter_weights/10_shot.pth"
 test:
   output_rles: False
   #cropping 

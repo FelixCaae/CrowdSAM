@@ -89,7 +89,7 @@ class CrowdSAM():
             from segment_anything_cs import sam_model_registry, SamPredictor
             # from per_segment_anything_person_specific import sam_model_registry,SamPredictor
             sam = sam_model_registry[sam_model](checkpoint=sam_checkpoint,n_class=n_class)
-            sam.mask_decoder.load_state_dict(torch.load(sam_adapter_checkpoint),strict=False)
+            sam.mask_decoder.load_state_dict(torch.load(sam_adapter_checkpoint,weights_only=True),strict=False)
             predictor = SamPredictor(sam, dino_model)
 
         elif sam_arch =='sam_hq':
@@ -109,7 +109,7 @@ class CrowdSAM():
             from segment_anything import sam_model_registry,SamPredictor
             sam = sam_model_registry[sam_model](checkpoint=sam_checkpoint)
             predictor = SamPredictor(sam)
-
+        dino_model = dino_model.to(self.device)
         sam = sam.to(self.device)
         return predictor
     
@@ -278,7 +278,7 @@ class CrowdSAM():
             )
         #Implement joint classification scores here 
         if self.train_free:
-            sim_map_high_res = F.interpolate(sim_map.unsqueeze(0).unsqueeze(0), self.image.shape[:2],mode='bilinear')[0,0].cuda()  
+            sim_map_high_res = F.interpolate(sim_map.unsqueeze(0).unsqueeze(0), self.image.shape[:2],mode='bilinear')[0,0].to(self.device)  
             # cls_scores = self.evaluate_cls_scores(data['masks'], sim_map_high_res, clf)
             cls_scores = []
             for mask in data['masks']:

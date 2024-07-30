@@ -33,28 +33,6 @@ def load_config(config_file):
     with open(config_file, 'r') as file:
         config = yaml.safe_load(file)
     return config
-def envrion_init():
-    parser = argparse.ArgumentParser(description="可写可不写，只是在命令行参数出现错误的时候，随着错误信息打印出来。")
-    parser.add_argument('--mode', type=str, choices=['seg', 'ref_only'], default='seg')
-    #data related
-    parser.add_argument('--start_idx',type=int, default=0)
-    parser.add_argument('--num_imgs',type=int, default=-1) # -1 represents using all images
-    parser.add_argument('--config_file', type=str, default='./configs/crowdhuman.yaml')
-    parser.add_argument('--visualize',action="store_true")
-    parser.add_argument('--output_dir', type=str, default=None)
-    # parser.add_argument('--dataset',type=str, default="crowdhuman")
-
-    args = parser.parse_args()
-    configs = load_config(args.config_file)
-    if args.output_dir is not None:
-        configs['environ']['output_dir'] = args.output_dir
-    np.random.seed(configs['environ']['seed'])
-    torch.random.manual_seed(configs['environ']['seed'])
-    os.makedirs(configs['environ']['output_dir'], exist_ok=True)
-    os.makedirs(configs['environ']['output_dir'] + '/log', exist_ok=True)
-    logger = setup_logger(configs['environ']['output_dir'] + '/log') 
-    logger.info(args)
-    return args, configs, logger
 
 
 def visualize_result(image, result, class_names, save_path, conf_thresh=0.001, FP_ind = None, FN_ind = None):
