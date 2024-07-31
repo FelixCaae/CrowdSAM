@@ -96,32 +96,6 @@ def generate_crop_boxes(
 
     return crop_boxes, layer_idxs
 
-def find_contours(sim_map, img_size, pos_sim_thresh, min_area=0):
-    #use cv2 to find contours first and then genearte crop boxes based on contours
-    sim_map = F.interpolate(sim_map.unsqueeze(0).unsqueeze(0), img_size, mode='bilinear')[0,0].numpy()
-    # gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    image = sim_map
-    # Apply thresholding to create a binary image
-    # _, binary_image = cv2.threshold(image, 128, 255, cv2.THRESH_BINARY)
-    # Find contours in the binary image
-    binary_image = (image > pos_sim_thresh).astype(np.uint8)
-    contours, hierarchy = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    result_boxes=[]
-    areas = []
-    # Draw the contours on the original image
-    for contour in contours:
-        if len(contours) <= 2:
-            continue
-        x0,y0 = contour.min(0)[0]
-        x1,y1 = contour.max(0)[0]
-        area = (y1-y0) * (x1-x0)
-        if min_area >0 and area < min_area:
-            continue
-        result_boxes.append([x0,y0,x1,y1])
-        areas.append(area)
-    # boxes, areas =  torch.tensor(result_boxes), torch.tensor(areas)
-    return result_boxes, areas
 def resize_image(image, max_size):  
     # Maybe upscale image when image longest side is lower  than max_size
     # This modification is slightly better than only downscale (41.3->41.7 on midval)
@@ -350,14 +324,7 @@ def show_box(box,  ax, color='green', score=None, ):
     x0, y0 = box[0], box[1]
     w, h = box[2] - box[0], box[3] - box[1]
     ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor=color, facecolor=(0,0,0,0), lw=2))    
-def gen_gaussian(patch_h, patch_w, x_miu, y_miu, sigma_x, sigma_y):
-    H_arange = torch.arange(0,patch_h)
-    W_arange = torch.arange(0,patch_w)    
-    grid_y, grid_x = torch.meshgrid(W_arange, H_arange ,indexing='ij') 
-    # grids = torch.stack([grid_i, grid_j], dim=-1) # h,w, 2
-    gaussian = 1.0 / (2 * np.pi * sigma_x * sigma_y) 
-    gaussian = gaussian * np.exp(-0.5 * ((grid_x-x_miu)/ sigma_x)**2 -0.5* ((grid_y-y_miu)/sigma_y)**2 )
-    return gaussian 
+
 def load_img_and_annotation(dataset_path, annots, dataset, id=0):
     img_meta = annots['images'][id]
     if dataset=='crowdhuman':
@@ -514,20 +481,6 @@ def evaluate_boxes(pred_boxes: np.ndarray, pred_scores:  np.ndarray, gt_boxes:  
     FN_list = (~match_mask).nonzero(as_tuple=False).flatten().tolist()
     return precision, recall, FP_list, FN_list
 
-def tsne_and_plot(data, labels, output_path='./tsne.jpg'):
-    from sklearn.manifold import TSNE
-    tsne_2D = TSNE(n_components=2, init='pca', random_state=0) 
-    data = tsne_2D.fit_transform(data )
-    x_min, x_max = np.min(data, 0), np.max(data, 0)
-    data = (data - x_min) / (x_max - x_min)
-    plt.figure()
-    plt.scatter(data[:,0], data[:,1], marker='o', c=labels)
-    plt.xticks([])
-    plt.yticks([])
-    plt.savefig(output_path)
-    
-    
-
 def dice_loss(
         inputs: torch.Tensor,
         targets: torch.Tensor,
@@ -620,8 +573,6 @@ def average_metric(result, key):
     metrics = [item[key] for item in result]
     return round(float(sum(metrics) / len(metrics)),3)
 #load img and annotations
-
-
 
 def mask_to_rle_numpy(tensor: torch.Tensor) -> List[Dict[str, Any]]:
     """

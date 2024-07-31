@@ -29,6 +29,8 @@ def merge_json(json_files):    # Initialize an empty list to hold merged data
         with open(json_file, 'r') as f:
             data = json.load(f)
             merged_data.extend(data)
+    for json_file in json_files:
+        os.remove(json_file)
     # Write merged data to the specified output JSON file
     return merged_data
 def convert_to_coco(det_result, gt_js):
