@@ -70,21 +70,27 @@ Run the script to convert odgt file to json file.
 python tools/crowdhuman2coco.py -o annotation_val.odgt -v -s val_visible.json -d dataset/crowdhuman
 ```
 ##  How to use
-
+Our model configs are written with yaml in the *configs* directory. 
 To start training the model, run the following command:
 ```bash
 python train.py --config_file ./configs/config.yaml
 ```
 Make sure to update the `config.yaml` file with the appropriate paths and parameters as needed.
 
-To evaluate the model, use the following command:
+To evaluate the model, we recommend to use the following command for batch evaluation:
 ```bash
-python tools/batch_eval.py
+python tools/batch_eval.py --config_file ./configs/config.yaml -n num_gpus
 ```
+
+To visualize the outputs, use the following command:
+```bash
+python tools/batch_eval.py --config_file ./configs/config.yaml
+```
+
 This will run the evaluation script on the test dataset and output the results.
 ##  📊 Qualitative Results
-![demo1](figures/demo_1.jpg)
-![demo2](figures/demo_2.jpg)
+![qual](figures/qual_comp.png)
+<!-- ![demo2](figures/demo_2.jpg) -->
 
 ## Acknowlegement
 We build our project based on the segment-anything and dinov2.
@@ -92,10 +98,10 @@ We build our project based on the segment-anything and dinov2.
 ## 📜 Citation
 You can cite our paper with such bibtex:
 ```bibtex
-@article{cai2024crowd,
+@inproceedings{cai2024crowd,
   title={Crowd-SAM: SAM as a Smart Annotator for Object Detection in Crowded Scenes},
   author={Cai, Zhi and Gao, Yingjie and Zheng, Yaoyan and Zhou, Nan and Huang, Di},
-  journal={arXiv preprint arXiv:2407.11464},
+  booktitle={Proceedings of the European Conference on Computer Vision (ECCV)},
   year={2024}
 }
 ```
