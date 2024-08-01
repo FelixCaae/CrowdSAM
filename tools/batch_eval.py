@@ -5,7 +5,7 @@ import argparse
 import json
 import yaml
 import crowdsam.utils as utils
-def run_script(start_idx, end_idx, rank, exec_file,config_file):
+def run_script(start_idx, end_idx, rank, exec_file,config_file, options):
     cmd = [
         
         # 'srun', '-c', '4', '--mem', '40G', '--gres=gpu:1', 
@@ -15,7 +15,7 @@ def run_script(start_idx, end_idx, rank, exec_file,config_file):
         '--start_idx', str(start_idx), 
         '--end_idx', str(end_idx),
         '--local_rank', str(rank),
-    ]
+    ] + options
     print(f"Running command: {' '.join(cmd)}")
     subprocess.run(cmd)
 
@@ -78,7 +78,6 @@ def main():
     config_file = args.config_file
     options = args.options
     
-
     # Run the python scripts concurrently
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_nodes) as executor:
         futures = []
@@ -89,7 +88,7 @@ def main():
                 end_idx = num_imgs
             else:
                 end_idx = (i + 1) * batch_size 
-            futures.append(executor.submit(run_script, start_idx, end_idx, i, exec_file, config_file))
+            futures.append(executor.submit(run_script, start_idx, end_idx, i, exec_file, config_file, args.options))
         # Wait for all futures to complete
         concurrent.futures.wait(futures)
 

@@ -68,13 +68,10 @@ def cache_feature(train_dataloader,  sam, max_steps = 100, feat_size = 40, patch
         scale = torch.tensor([img_width,img_height, img_width, img_height]).unsqueeze(0)
         target_boxes = target_boxes * scale #* r
         sam.set_image(image_np)
-
         prompt_boxes = sam.transform.apply_boxes(target_boxes.numpy(), sam.original_size)
         prompt_boxes = torch.tensor(prompt_boxes)[:,None,:].cuda()
-        
         #extract only low resolution masks 
         masks_list = []
-
         masks = predict_torch(sam, boxes=prompt_boxes, multimask_output=False)[0].cpu()
         masks_list.append(masks)
         masks = torch.cat(masks_list,dim=0)
@@ -146,7 +143,6 @@ def compute_loss(low_res_masks:torch.Tensor,
     #generic masks
     #keep masks predicted positive prompts only
     low_res_masks = low_res_masks[:num_pos_sample]
-    # box_delta = box_delta[:num_pos_sample]
     #compute loss
     dc_loss =utils.dice_loss(low_res_masks, target_masks.unsqueeze(1).float())
     iou_pred_target = utils.mIoU(low_res_masks, target_masks.unsqueeze(1).float())
@@ -159,19 +155,6 @@ def compute_loss(low_res_masks:torch.Tensor,
     #select the branch of lowest loss to propogate loss 
     dice_loss = utils.dice_loss(cls_logits, fg_mask).mean()
     #gneric prompt needs matching process
-    if debug:
-        plt.subplot(1,2,1)
-        plt.imshow(low_res_masks.any(0).any(0).cpu())
-        for box in pred_boxes * 256:
-            utils.show_box(box.cpu(), plt.gca())
-        plt.gca().set_title('pred boxes')
-        plt.subplot(1,2,2)
-        plt.imshow(target_masks.any(0).cpu())
-        for box in target_boxes * 256:
-            utils.show_box(box.cpu(), plt.gca())
-        plt.gca().set_title('gt boxes')
-        plt.savefig('outputs/sam_adapter_debug/test.jpg')
-        plt.close()
     #selection loss for person
     iou_target = torch.zeros_like(iou_predictions) # 2*prompt_len, 3, 1
     iou_target[torch.arange(num_masks)] = iou_pred_target
@@ -228,41 +211,8 @@ def train_loop(data_loader,  predictor, optimizer, max_steps=3000, n_shot=10, ba
         cls_logits = predictor.predict_fg_map((img_height, img_width))[0]
         cls_logits = cls_logits[:,:int(scale*img_height), :int(scale*img_width)]
 
-        if step%101 ==0 and debug:
-            # os.makedirs('outputs/sam_adapter_mae', exists_ok=True)
-            plt.figure()
-            plt.subplot(1,2,1)
-            plt.imshow(cls_logits.sigmoid().detach().cpu()[0])
-            plt.subplot(1,2,2)
-            plt.imshow(fg_mask.cpu()[0])
-            plt.savefig(f'outputs/debug/test_{step}.jpg')
         low_res_masks, iou_predictions, cls_scores = predict_torch(predictor, prompt_coords_trans, prompt_labels)
-        if debug:
-            prompt_labels[num_select_sample:] = 0
-            low_res_masks = low_res_masks > 0
-            prompt_coords_trans = prompt_coords_trans/1024*256
-            plt.figure()
-            plt.subplot(1,3,1)
-            plt.gca().set_title('positive prediction')
-            color = np.array(['r', 'g'])[prompt_labels.cpu().int().flatten()]
-            plt.scatter(prompt_coords_trans[:,0,0].cpu(),prompt_coords_trans[:,0,1].cpu(), c= color)
-            plt.imshow(low_res_masks[:num_select_sample].cpu().any(0).any(0))
-            for box in batched_mask_to_box(low_res_masks[:num_select_sample]>0).flatten(0,1):
-                utils.show_box(box.cpu(), plt.gca())
-            plt.subplot(1,3,2)
-            plt.gca().set_title('negative prediction ')
-            color = np.array(['r', 'g'])[prompt_labels.cpu().int().flatten()]
-            plt.imshow(low_res_masks[num_select_sample:].cpu().any(0).any(0))
-
-            plt.subplot(1,3,3)
-            plt.gca().set_title('pseudo labels')
-            plt.imshow(target_masks.any(0).cpu()) 
-            for box in target_boxes * 256:
-                utils.show_box(box.cpu(), plt.gca())
-
-            os.makedirs('outputs/sam_adapter_debug',exist_ok=True)
-            plt.savefig(f'outputs/sam_adapter_debug/{step}.jpg')
-            plt.close()
+    
         loss_dict = compute_loss(low_res_masks,
                                  None, 
                                  iou_predictions * cls_scores.sigmoid()[:,:,0], 

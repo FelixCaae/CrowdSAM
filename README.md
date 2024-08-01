@@ -1,12 +1,35 @@
 
-## [Crowd-SAM: SAM as a Smart Annotator for Object Detection in Crowded Scenes](https://arxiv.org/abs/2407.11464)
-------------
+# Crowd-SAM: SAM as a Smart Annotator for Object Detection in Crowded Scenes [ECCV2024]
+<p align="center">
+    <img src="https://i.imgur.com/waxVImv.png" alt="Oryx Video-ChatGPT">
+</p>
 
-## 1. Introduction
-Crowd-SAM is a novel few-shot object detection and segmentation method designed to handle crowded scenes. We combine SAM with the specifically designed efficient prompt  sampler and a mask selection PWD-Net to achieve fast and accurate pedestrian detection! Crowd-SAM achieves 78.4\% AP on the Crowd-Human benchmark with 10 supporting images which is comparable to supervised detectors. 
+#### [Zhi Cai](https://github.com/FelixCaae)<sup>1,2</sup>, Yingjie Gao<sup>1,2</sup>, [Yaoyan Zheng](https://github.com/BUAAHugeGun)<sup>1,2</sup>, Nan Zhou<sup>1,2</sup> and [Di Huang](https://irip.buaa.edu.cn/dihuang/index.html)<sup>1,2</sup>
+
+
+#### **<sup>1</sup>SCSE Beihang University, <sup>2</sup>IRIP Lab Beihang University**
+
+
+
+[![paper](https://img.shields.io/badge/arXiv-Paper-<COLOR>.svg)](https://arxiv.org/abs/2407.11464)
+
+---
+
+## 📢 Latest Updates
+- **Aug-1-24**: We open source the code, models.🔥🔥
+- **Jul-20-24**: Crowd-SAM paper is released [arxiv link](https://arxiv.org/abs/2407.11464). 🔥🔥
+- **Jul-1-24**: Crowd-SAM has been accepted to **ECCV-24** 🎉. 
+---
+
+
+
+##  Overview
+Crowd-SAM is a novel few-shot object detection and segmentation method designed to handle crowded scenes.  Generally, object detection requires extensive labels for
+ training, which is quite time-consuming, especially in crowded scenes. In this work, We combine SAM with the specifically designed efficient prompt  sampler and a mask selection PWD-Net to achieve fast and accurate pedestrian detection! Crowd-SAM achieves 78.4\% AP on the Crowd-Human benchmark with 10 supporting images which is comparable to supervised detectors. 
+
 
 ![PDF Page](figures/fig1.jpg)
-## 2. Installation
+##  Installation
 We recommend to use virtual enviroment, *e.g. Conda*,  for installation:
 1. Create virtual environment:
    ```bash
@@ -27,7 +50,7 @@ We recommend to use virtual enviroment, *e.g. Conda*,  for installation:
      
     Place the donwdloaded weights in the  *weights* directory. If it does not exist, use command ``` mkdir weights ``` to create one.
    
-## 3. Preparing Data
+## Data Preparation
 ### 1. CrowdHuman
 
 Download the CrowdHuman dataset from the [official website](https://www.crowdhuman.org/download.html). *Note that we only need the CrowdHuman_val.zip* and *annotation_val.odgt*. 
@@ -46,7 +69,7 @@ Run the script to convert odgt file to json file.
 ```
 python tools/crowdhuman2coco.py -o annotation_val.odgt -v -s val_visible.json -d dataset/crowdhuman
 ```
-## 4. How to use
+##  How to use
 
 To start training the model, run the following command:
 ```bash
@@ -59,13 +82,14 @@ To evaluate the model, use the following command:
 python tools/batch_eval.py
 ```
 This will run the evaluation script on the test dataset and output the results.
-
+##  📊 Qualitative Results
+![demo1](figures/demo_1.jpg)
 ![demo1](figures/demo_2.jpg)
+
 ## Acknowlegement
 We build our project based on the segment-anything and dinov2.
 
-## Citation
-
+## 📜 Citation
 You can cite our paper with such bibtex:
 ```bibtex
 @article{cai2024crowd,
