@@ -10,17 +10,6 @@ import torch
 from typing import Optional, Tuple
 import math
 from .utils.transforms import ResizeLongestSide
-def distance_embed(x, temperature = 10000, num_pos_feats = 128, scale=10.0):
-    # x: [bs, n_dist]
-    x = x[..., None]
-    scale = 2 * math.pi * scale
-    dim_t = torch.arange(num_pos_feats)
-    dim_t = temperature ** (2 * torch.div(dim_t, 2, rounding_mode="floor") / num_pos_feats)
-    sin_x = x * scale / dim_t.to(x.device)
-    emb = torch.stack((sin_x[..., 0::2].sin(), sin_x[..., 1::2].cos()), dim=-1).flatten(-2)
-    return emb # [bs, n_dist, n_emb]
-
-
 class SamPredictor:
     def __init__(
         self,

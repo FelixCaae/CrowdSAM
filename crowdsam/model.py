@@ -393,8 +393,6 @@ class CrowdSAM():
         keep_mask = ~utils.is_box_near_crop_edge(data["boxes"], crop_box,  [0, 0, orig_w, orig_h], self.downscale)
         if not torch.all(keep_mask):
             data.filter(keep_mask)
-
-
         return data
     
 

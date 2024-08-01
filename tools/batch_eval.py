@@ -74,7 +74,7 @@ def main():
     num_nodes = args.num_nodes
     annot_file = config['data']['json_file']
     odgt_file = config['data']['odgt_file']
-    exec_file = 'test.py'
+    exec_file = 'tools/test.py'
     config_file = args.config_file
     options = args.options
     

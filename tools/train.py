@@ -22,7 +22,6 @@ class CrowdHuman(torch.utils.data.Dataset):
         self.transform = transform
         img_dir = 'Images'        
         annots = json.load(open( annot_path))
-        # prompts = json.load(open(pred_path))
         annotations = annots['annotations']
         images = annots['images']
         self.image_ids = [img['id'] for img in images]
@@ -34,7 +33,6 @@ class CrowdHuman(torch.utils.data.Dataset):
             self.boxes[image_id].append(annot['bbox'])
         
         self.image_files = [os.path.join(dataset_root, img_dir,img['file_name']) for img in images]    
-        # self.pred_prompts = [item['prompts'] for item in prompts]
     def __getitem__(self, item):
         img = Image.open(self.image_files[item])
         w,h = img.size
@@ -46,45 +44,67 @@ class CrowdHuman(torch.utils.data.Dataset):
         return len(self.image_files)
     
 def collate_fn(data):
-    images,boxes= zip(*data)
+    images, boxes= zip(*data)
     return images, boxes
 
-
 @torch.no_grad()
-def cache_feature(train_dataloader,  sam, max_steps = 100, feat_size = 40, patch_size = 14, debug=False):
-        #training loop
-    dataloder_iter = iter(train_dataloader)
+def cache_feature(train_dataloader, sam, max_steps=100, feat_size=40, patch_size=14, debug=False):
+    """
+    Caches image embeddings for the SAM model from the training data.
+
+    Args:
+    - train_dataloader (DataLoader): DataLoader providing the training data.
+    - sam (SamPredictor): The SAM model instance.
+    - max_steps (int): Maximum number of steps to cache embeddings.
+    - feat_size (int): Feature size (default 40).
+    - patch_size (int): Patch size (default 14).
+    - debug (bool): If true, enables debugging mode.
+
+    Returns:
+    - cache (list): List of cached features including image embeddings, DINO features, target boxes, image dimensions, and masks.
+    """
+    # Initialize dataloader iterator
+    dataloader_iter = iter(train_dataloader)
     logger.info('Start caching SAM\'s image embeddings for training.. (This will take several seconds) ')
-    cached_sam_feature = []
+    cache = []
+
     for step in tqdm.tqdm(range(0, max_steps)):
-        data = next(dataloder_iter)
+        # Get the next batch of data
+        data = next(dataloader_iter)
         imgs, target_boxes = data
-        #select one image for training
+
+        # Select one image for training
         image = imgs[0]
         image_np = np.array(image)
-        # image_np = (255*img_tensor.permute(1,2,0).numpy()).astype(np.uint8)
         target_boxes = target_boxes[0] 
-        img_height, img_width = image_np.shape[:2] #C,H,W        
-        scale = torch.tensor([img_width,img_height, img_width, img_height]).unsqueeze(0)
-        target_boxes = target_boxes * scale #* r
+        img_height, img_width = image_np.shape[:2]
+
+        # Scale the target boxes to the image dimensions
+        scale = torch.tensor([img_width, img_height, img_width, img_height]).unsqueeze(0)
+        target_boxes = target_boxes * scale
+
+        # Set the image in the SAM model
         sam.set_image(image_np)
+
+        # Apply transformations to the target boxes
         prompt_boxes = sam.transform.apply_boxes(target_boxes.numpy(), sam.original_size)
-        prompt_boxes = torch.tensor(prompt_boxes)[:,None,:].cuda()
-        #extract only low resolution masks 
+        prompt_boxes = torch.tensor(prompt_boxes)[:, None, :].cuda()
+
+        # Extract only low resolution masks
         masks_list = []
         masks = predict_torch(sam, boxes=prompt_boxes, multimask_output=False)[0].cpu()
-        masks_list.append(masks)
-        masks = torch.cat(masks_list,dim=0)
-        masks = (masks>0)
+        masks = (masks > sam.model.mask_threshold)
+
         assert len(masks) == len(target_boxes)
+        
+        # Get DINO features
         dino_features = sam.dino_feats
-        # masks = masks.any(dim=0,keepdims=True)
-        cached_sam_feature.append([sam.get_image_embedding().cpu(),
-                                   dino_features.cpu(),
-                                   target_boxes.cpu(),
-                                   (img_height, img_width),  
-                                   masks.cpu()])
-    return cached_sam_feature
+
+        # Cache the image embeddings, DINO features, target boxes, image dimensions, and masks
+        cache.append([sam.get_image_embedding().cuda(), dino_features.cuda(), target_boxes, (img_height, img_width), masks.cuda()])
+
+    return cache
+
 
 
 def predict_torch(
@@ -94,6 +114,9 @@ def predict_torch(
         boxes = None,
         multimask_output = True,
     ) :
+    '''
+    This function is copied from segment anything predictor and modified for 
+    '''
         #we modify the definition of point_labels here to define pos point point label = 1 , neg point label = 0
     if point_coords is not None:
         assert len(point_coords) == len(point_labels)
@@ -108,7 +131,6 @@ def predict_torch(
         masks=None,
     )
 
-    # import pdb;pdb.set_trace()
     # Predict masks
     low_res_masks, iou_predictions, cls_scores = predictor.model.mask_decoder(
         image_embeddings=predictor.features,
@@ -119,7 +141,6 @@ def predict_torch(
         dino_feats = predictor.dino_feats,
     )
     #B,C,H,W -> B,H,W,C for MLP to process
-
     return low_res_masks, iou_predictions, cls_scores
 
 def clip_grads(params,  max_norm=0.1):    
@@ -132,55 +153,75 @@ def clip_grads(params,  max_norm=0.1):
 
 @logger.catch()
 def compute_loss(low_res_masks:torch.Tensor, 
-                 box_delta:torch.Tensor,
                  iou_predictions:torch.Tensor,
                  cls_logits:torch.Tensor,
                  target_masks:torch.Tensor,
-                 target_boxes:torch.Tensor,
                  fg_mask:torch.Tensor,
                  num_pos_sample:int, 
                  debug=False):
-    #generic masks
-    #keep masks predicted positive prompts only
+    """
+    Computes the loss for the given predictions and targets.
+
+    Args:
+    - low_res_masks (torch.Tensor): Low-resolution predicted masks.
+    - iou_predictions (torch.Tensor): Predicted IoU values.
+    - cls_logits (torch.Tensor): Classification logits.
+    - target_masks (torch.Tensor): Sampled  GT masks.
+    - fg_mask (torch.Tensor): Foreground GT mask (including all GT).
+    - num_pos_sample (int): Number of positive samples.
+    - debug (bool): If true, enables debugging mode.
+
+    Returns:
+    - loss_dict (dict): Dictionary containing various losses.
+    """
+   
+    # Keep masks predicted for positive prompts only
     low_res_masks = low_res_masks[:num_pos_sample]
-    #compute loss
-    dc_loss =utils.dice_loss(low_res_masks, target_masks.unsqueeze(1).float())
+
+    # Compute Dice Loss between predicted and target masks
+    dc_loss = utils.dice_loss(low_res_masks, target_masks.unsqueeze(1).float())
     iou_pred_target = utils.mIoU(low_res_masks, target_masks.unsqueeze(1).float())
+
+    # Find the index of the mask with the minimum Dice loss
     max_sim_ind = dc_loss.min(dim=1)[1]
-    num_masks = low_res_masks.shape[0]            
-    #convert low_res_masks to boxes
-    #B,C,H,W
-    pred_boxes = batched_mask_to_box(low_res_masks>0) 
-    pred_boxes = pred_boxes[torch.arange(num_masks), max_sim_ind] /256
-    #select the branch of lowest loss to propogate loss 
+    num_masks = low_res_masks.shape[0]
+
+    # Compute classification loss (Dice Loss) for the foreground mask
     dice_loss = utils.dice_loss(cls_logits, fg_mask).mean()
-    #gneric prompt needs matching process
-    #selection loss for person
-    iou_target = torch.zeros_like(iou_predictions) # 2*prompt_len, 3, 1
+
+    # Prepare IoU target tensor
+    iou_target = torch.zeros_like(iou_predictions)
     iou_target[torch.arange(num_masks)] = iou_pred_target
     cls_loss = F.mse_loss(iou_predictions, iou_target, reduction='none').sum(dim=[1])
-    pos_cls_loss = cls_loss[:num_pos_sample].mean() 
+
+    # Separate classification loss for positive and negative samples
+    pos_cls_loss = cls_loss[:num_pos_sample].mean()
     neg_cls_loss = cls_loss[num_pos_sample:].mean()
-    
-    # neg_cls_loss = F.mse_loss(neg_iou_predictions, torch.zeros_like(neg_iou_predictions))
-    loss_dict = {'pos_cls_loss':pos_cls_loss, 'neg_cls_loss':neg_cls_loss,
-                'dice_loss':dice_loss}
+
+    # Build loss dictionary
+    loss_dict = {
+        'pos_cls_loss': pos_cls_loss,
+        'neg_cls_loss': neg_cls_loss,
+        'dice_loss': dice_loss
+    }
+    # Log the loss values if in debug mode
+    if debug:
+        logger.debug(f"Loss dict: {loss_dict}")
+
     return loss_dict
-def train_loop(data_loader,  predictor, optimizer, max_steps=3000, n_shot=10, batch_sample_num=20, clip_grad=0.1, debug=False):
-    neg_factor = 3 #the ratio of neg_prompts:pos_prompts
+def train_loop(data_loader,  predictor, optimizer, max_steps=3000, neg_factor=3, n_shot=10, batch_sample_num=20, clip_grad=0.1, debug=False):
     
-    cached_sam_feature = cache_feature(data_loader,predictor,  n_shot, debug=debug)    
+    cache = cache_feature(data_loader,predictor, n_shot, debug=debug)    
     
     for step in range(0, max_steps):
         #Extract sample according to step
-        sample_idx = step%len(cached_sam_feature)
-        features, dino_features, target_boxes,  (img_height, img_width), target_masks = cached_sam_feature[sample_idx]
-        num_select_sample = min(batch_sample_num, len(target_boxes))        
+        sample_idx = step%len(cache)
+        features, dino_features, _,  (img_height, img_width), target_masks = cache[sample_idx]
+        num_select_sample = min(batch_sample_num, len(target_masks))        
         #Shuffule and sample the targets to avoid OOM  
-        sample_ind = np.random.choice(np.arange(len(target_boxes)), num_select_sample,replace=False)
-        fg_mask = target_masks.any(dim=0).cpu()
+        sample_ind = np.random.choice(np.arange(len(target_masks)), num_select_sample,replace=False)
+        fg_mask = target_masks.any(dim=0)#.cpu()
         target_masks = target_masks[sample_ind,0]
-        target_boxes = target_boxes[sample_ind]
         #Sample positive point prompts
         pos_point_coords = []
         for mask in target_masks:
@@ -197,12 +238,10 @@ def train_loop(data_loader,  predictor, optimizer, max_steps=3000, n_shot=10, ba
         #Cat the prompts and convert variables to cuda
         point_coords = torch.cat([pos_point_coords, neg_point_coords], dim=0)
         point_coords = point_coords / scale
-        prompt_coords_trans = predictor.transform.apply_coords(point_coords.unsqueeze(1).numpy(), (img_height, img_width))
+        prompt_coords_trans = predictor.transform.apply_coords(point_coords.unsqueeze(1).cpu().numpy(), (img_height, img_width))
         prompt_coords_trans = torch.from_numpy(prompt_coords_trans).cuda()
         prompt_labels = torch.ones_like(prompt_coords_trans)[:,:,0].cuda()
         target_masks = target_masks.cuda()
-        target_boxes = target_boxes.cuda()
-        target_boxes = target_boxes / max(img_height, img_width)
         fg_mask = fg_mask[:,:int(scale*img_height), :int(scale*img_width)].float().cuda()
 
         predictor.features = features.cuda()
@@ -212,21 +251,20 @@ def train_loop(data_loader,  predictor, optimizer, max_steps=3000, n_shot=10, ba
         cls_logits = cls_logits[:,:int(scale*img_height), :int(scale*img_width)]
 
         low_res_masks, iou_predictions, cls_scores = predict_torch(predictor, prompt_coords_trans, prompt_labels)
-    
         loss_dict = compute_loss(low_res_masks,
-                                 None, 
                                  iou_predictions * cls_scores.sigmoid()[:,:,0], 
                                  cls_logits,
                                 target_masks= target_masks,
-                                target_boxes = target_boxes,
                                 fg_mask = fg_mask,
                                 num_pos_sample=num_select_sample,
                                 debug = debug)
 
         total_loss = sum([v for k,v in loss_dict.items()])
         total_loss.backward()
-        clip_grads(predictor.model.parameters(), clip_grad)
+        torch.nn.utils.clip_grad_norm_(predictor.model.parameters(), clip_grad)
         optimizer.step()
+        optimizer.zero_grad()  # Add this to reset gradients after update
+
         loss_dict_data = {k:round(float(v.data),3) for k,v in loss_dict.items()}
         
         if step %100 == 0:
@@ -260,38 +298,6 @@ if __name__ == '__main__':
         dino_repo = config['model']['dino_repo']
         model = torch.hub.load(dino_repo, config['model']['dino_model'],source='local',pretrained=False).cuda()
         model.load_state_dict(torch.load(config['model']['dino_checkpoint'],weights_only=True))
-    elif model_arch == 'resnet':
-        print('usning resnet-50 as backbone')
-        r50 = torchvision.models.resnet50(pretrained=True)
-        model = r50.cuda()
-        def forward_features(self, image):
-            import torch.nn as nn
-            sub_layers = nn.Sequential(*list(self.children())[:-2])
-            x = {}
-            x['x_norm_patchtokens'] = sub_layers(image)
-            return x 
-        # model.forward_features= forward_features
-        setattr(model, 'forward_features', forward_features)
-    elif model_arch == 'swin':
-        print('usning swin-b as backbone')
-        r50 = torchvision.models.swin_b(pretrained=True)
-        model = r50.cuda()
-        def forward_features(self, image):
-            import torch.nn as nn
-            sub_layers = nn.Sequential(*list(self.children())[:-2])
-            x = {}
-            x['x_norm_patchtokens'] = sub_layers(image)
-            return x 
-        # model.forward_features= forward_features
-        setattr(model, 'forward_features', forward_features)
-    elif model_arch == 'mae':
-        print('usning dino as backbone')
-        from vit_mae import vit_large_patch16
-        vit_l = vit_large_patch16()        
-        state_dict = torch.load('../mae_pretrain_vit_large.pth')
-        vit_l.load_state_dict(state_dict['model'],strict=False)
-        # vit_l.resize()
-        model = vit_l.cuda()
     predictor = SamPredictor(sam, model)
     learnable_params = itertools.chain(predictor.model.mask_decoder.parallel_iou_head.parameters(),
                                                          predictor.model.mask_decoder.point_classifier.parameters(),
@@ -310,7 +316,7 @@ if __name__ == '__main__':
     if mode == 'training':
         dataset = CrowdHuman(config['data']['dataset_root'],config['data']['train_file'], transform=T.ToTensor())
         train_dataloader = torch.utils.data.DataLoader(dataset, 1, shuffle=True, num_workers=0, drop_last=False,collate_fn=collate_fn)
-        train_loop(train_dataloader, predictor, optimizer, config['train']['steps'], config['train']['n_shot'], config['train']['samples_per_batch'], debug=args.debug)
+        train_loop(train_dataloader, predictor, optimizer, config['train']['steps'], config['train']['neg_factor'], config['train']['n_shot'], config['train']['samples_per_batch'], debug=args.debug)
         torch.save(predictor.model.mask_decoder.state_dict(), config['train']['save_path'])
         logger.info('done')
    

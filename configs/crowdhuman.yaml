@@ -5,7 +5,7 @@ environ:
 data:
   dataset: "crowdhuman"
   dataset_root: "./dataset/crowdhuman"
-  json_file: "./dataset/crowdhuman/midval_visible_100.json"
+  json_file: "./dataset/crowdhuman/val_visible.json"
   train_file: "./dataset/crowdhuman/train_crowdhuman_10shot.json"
   odgt_file: "./dataset/crowdhuman/annotation_val.odgt"
 model:
@@ -24,6 +24,7 @@ train:
   n_shot: 10
   seed: 1
   samples_per_batch: 15
+  neg_factor: 3
   steps: 2000
   lr: 0.00001
   optimizer: "adamw"
@@ -43,7 +44,7 @@ test:
 
   #eps
   max_prompts: 500
-  filter_thresh: 0.1
+  filter_thresh: 0.5
   points_per_batch: 32
   mask_selection: "max_iou"
   max_size: 1024

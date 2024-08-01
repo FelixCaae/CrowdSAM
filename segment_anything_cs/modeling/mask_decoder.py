@@ -12,15 +12,7 @@ from typing import List, Tuple, Type
 
 from .common import LayerNorm2d
 import math
-def distance_embed(x, temperature = 10000, num_pos_feats = 128, scale=10.0):
-    # x: [bs, n_dist]
-    x = x[..., None]
-    scale = 2 * math.pi * scale
-    dim_t = torch.arange(num_pos_feats)
-    dim_t = temperature ** (2 * torch.div(dim_t, 2, rounding_mode="floor") / num_pos_feats)
-    sin_x = x * scale / dim_t.to(x.device)
-    emb = torch.stack((sin_x[..., 0::2].sin(), sin_x[..., 1::2].cos()), dim=-1).flatten(-2)
-    return emb # [bs, n_dist, n_emb]
+
 def inverse_sigmoid(x):
     return torch.log(x / (1 - x))
 class MaskDecoder(nn.Module):
@@ -77,14 +69,9 @@ class MaskDecoder(nn.Module):
 
         self.iou_prediction_head = MLP( transformer_dim, iou_head_hidden_dim, self.num_mask_tokens, iou_head_depth )
         # adapter modules
-        # self.feat_proj = MLP(transformer_dim,transformer_dim//2,transformer_dim, 2, False)
-        # self.fusion = Fusion(transformer_dim, 1024, 256, transformer_dim, 2)
         self.dino_proj = nn.Linear(1024, transformer_dim)
-        self.parallel_iou_head = MLP(transformer_dim*2, iou_head_hidden_dim,  1, iou_head_depth)
-        self.point_classifier = MLP(transformer_dim, iou_head_hidden_dim, n_class, 2)
-        self.mask_to_box_head =  MLP(
-            transformer_dim, iou_head_hidden_dim,  4, iou_head_depth
-        )
+        self.parallel_iou_head = DropMLP(transformer_dim*2, iou_head_hidden_dim,  1, iou_head_depth)
+        self.point_classifier = DropMLP(transformer_dim, iou_head_hidden_dim, n_class, 2)
         coco_setting = False
         if coco_setting:
             self.bg_prototypes = torch.load('/irip/caizhi_2019/label_completer/sam_adapter_weights/background_prototypes.vitl14.pth')
@@ -101,8 +88,6 @@ class MaskDecoder(nn.Module):
             map_id = torch.tensor(map_id)
             prototypes = prototypes[map_id]
             self.prototypes = prototypes
-        # nn.init.constant_(self.point_classifier.layers[-1].bias, -5.)
-        nn.init.constant_(self.mask_to_box_head.layers[-1].bias, 0.)
   
     def forward(
         self,
@@ -240,6 +225,7 @@ class MLP(nn.Module):
         if self.sigmoid_output:
             x = F.sigmoid(x)
         return x
+
 class DropMLP(nn.Module):
     def __init__(
         self,
@@ -248,7 +234,7 @@ class DropMLP(nn.Module):
         output_dim: int,
         num_layers: int,
         sigmoid_output: bool = False,
-        p =0.1,
+        p: float = 0.1,
     ) -> None:
         super().__init__()
         self.num_layers = num_layers
@@ -258,50 +244,12 @@ class DropMLP(nn.Module):
         )
         self.sigmoid_output = sigmoid_output
         self.p = p
+
     def forward(self, x):
         for i, layer in enumerate(self.layers):
             x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
-            x = F.dropout1d(x, self.p, training=self.training)
+            if i < self.num_layers - 1:  # Optional: Avoid dropout after the last layer
+                x = F.dropout(x, self.p, training=self.training)
         if self.sigmoid_output:
-            x = F.sigmoid(x)
-        return x
-class Fusion(nn.Module):
-    def __init__(
-        self,
-        input_dim_1: int,
-        input_dim_2: int,
-        hidden_dim:int, 
-        output_dim: int,
-        num_layers: int,
-    ) -> None:
-        super().__init__()
-        self.num_layers = num_layers
-        self.proj_layer_1 = nn.Linear(input_dim_1, hidden_dim)
-        self.proj_layer_2 = nn.Linear(input_dim_2, hidden_dim)
-        self.output_layer = MLP(hidden_dim * 2, hidden_dim, output_dim, num_layers)
-        
-    def forward(self, x1, x2):
-        x1 = self.proj_layer_1(x1)
-        x2 = self.proj_layer_2(x2)
-        x = torch.cat([x1,x2], dim=-1)
-        x = self.output_layer(x)
-        return x
-    
-class RejectionNet(nn.Module):
-    def __init__(
-        self,
-        transformer_dim,
-        hidden_dim,
-        depth=2,
-    ) -> None:
-        super().__init__()
-        self.rejection_head = MLP( transformer_dim * 2, hidden_dim, 1, depth)
-        # self.simple_proj = MLP(transformer_dim * 2, hidden_dim, transformer_dim, depth)
-        # self.gate_head = nn.Linear(transformer_dim, 1)
-    def forward(self, iou_token, mask_token, semantic_token=None):
-        iou_token = iou_token.unsqueeze(1).repeat(1,4,1)
-        fused_token = torch.cat([iou_token, mask_token], dim=-1)
-        x = self.rejection_head(fused_token).sigmoid().squeeze(-1)#.squeeze()
-
-        # x = self.output_layer(x)
+            x = torch.sigmoid(x)
         return x
