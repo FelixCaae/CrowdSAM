@@ -15,7 +15,7 @@ from torchvision.ops.boxes import box_area
 
 from PIL import Image
 from matplotlib import pyplot as plt
-from coco_names import coco_classes
+from .coco_names import coco_classes
 from itertools import product
 
 import argparse
@@ -34,6 +34,29 @@ def load_config(config_file):
         config = yaml.safe_load(file)
     return config
 
+
+def convert_value(value):
+    # Attempt to convert the value to the most appropriate data type
+    if value.lower() in {"true", "false"}:
+        return value.lower() == "true"
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return float(value)
+        except ValueError:
+            return value
+def modify_config(config_file, options):
+    assert len(options) % 2 == 0
+    keys = options[0::2]
+    values = options[1::2]
+    for key, value in zip(keys, values):
+        keys = key.split('.')
+        d = config_file
+        for k in keys[:-1]:
+            d = d.setdefault(k, {})
+        d[keys[-1]] = convert_value(value)
+    return config_file
 
 def visualize_result(image, result, class_names, save_path, conf_thresh=0.001, FP_ind = None, FN_ind = None):
     # plt.gca().set_title(f'gt boxes #GT {len(gt_boxes)}')

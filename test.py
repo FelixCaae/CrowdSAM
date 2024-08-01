@@ -3,11 +3,11 @@ import os
 import sys
 import json
 from tqdm import tqdm
-from crowdsam import CrowdSAM
 import numpy as np
 import torch
-from utils import (load_img_and_annotation, setup_logger,
-                   data_meta, load_config,
+from crowdsam.model import CrowdSAM
+from crowdsam.utils import (load_img_and_annotation, setup_logger,
+                   data_meta, load_config, modify_config,
                    visualize_result,evaluate_boxes)
 import argparse
 def envrion_init():
@@ -20,10 +20,12 @@ def envrion_init():
     parser.add_argument('-v','--visualize',help='visualize the outputs', action="store_true")
     parser.add_argument('-s','--save_path',help='the path to dump json result', type=str, default="")
     parser.add_argument('-r','--local_rank', type=int, default=0)
+    parser.add_argument('options',nargs=argparse.REMAINDER)
     # parser.add_argument('--dataset',type=str, default="crowdhuman")
     args = parser.parse_args()
 
     configs = load_config(args.config_file)
+    configs = modify_config(configs, args.options)
     np.random.seed(configs['environ']['seed'])
     torch.random.manual_seed(configs['environ']['seed'])
     os.makedirs(configs['environ']['output_dir'], exist_ok=True)

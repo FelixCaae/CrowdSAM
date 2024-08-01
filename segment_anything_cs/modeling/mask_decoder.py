@@ -101,16 +101,9 @@ class MaskDecoder(nn.Module):
             map_id = torch.tensor(map_id)
             prototypes = prototypes[map_id]
             self.prototypes = prototypes
-        nn.init.constant_(self.point_classifier.layers[-1].bias, -5.)
+        # nn.init.constant_(self.point_classifier.layers[-1].bias, -5.)
         nn.init.constant_(self.mask_to_box_head.layers[-1].bias, 0.)
-        # self.mask_refiner = nn.Sequential(
-        #     nn.Conv2d(transformer_dim//8, transformer_dim // 8, kernel_size=1, stride=1),
-        #     LayerNorm2d(transformer_dim // 8),
-        #     activation(),
-        #     nn.Conv2d(transformer_dim // 8, transformer_dim // 8, kernel_size=1, stride=1),
-        #     activation(),
-        # )# MLP(transformer_dim//8, transformer_dim//8, transformer_dim//8,2)
-        # self.prompt_proj = MLP(transformer_dim, transformer_dim * 2, 2)
+  
     def forward(
         self,
         image_embeddings: torch.Tensor,
@@ -195,12 +188,7 @@ class MaskDecoder(nn.Module):
         # Upscale mask embeddings and predict masks using the mask tokens
         src = src.transpose(1, 2).view(b, c, h, w)
         upscaled_embedding = self.output_upscaling(src)
-        # pooled_feats = upscaled_embedding.mean(dim=[-1,-2]) #
-        # import pdb;pdb.set_trace()
-        # pooled_feats = self.mask_refiner(pooled_feats).unsqueeze(-1).unsqueeze(-1)
-        # upscaled_embedding = upscaled_embedding * pooled_feats
-        
-        # upscaled_embedding = upscaled_embedding + self.mask_refiner(upscaled_embedding)
+
         hyper_in_list: List[torch.Tensor] = []
         # import pdb;pdb.set_trace()
         for i in range(self.num_mask_tokens):
@@ -208,39 +196,16 @@ class MaskDecoder(nn.Module):
         hyper_in = torch.stack(hyper_in_list, dim=1)
         b, c, h, w = upscaled_embedding.shape
         masks = (hyper_in @ upscaled_embedding.view(b, c, h * w)).view(b, -1, h, w)
-
         # masked_feat = image_embeddings[masks].mean(dim)
         # Generate mask quality predictions
         iou_pred = self.iou_prediction_head(iou_token_out)
-
         #Use decoded masks to pool related region of dino features
-        # masks_dino_res = F.interpolate(masks, (73,73))
         dino_feats = self.dino_proj(dino_feats)
         dino_feats = F.interpolate(dino_feats.permute(0,3,1,2), (256,256), mode='bilinear')
-        # masks_dino_res = masks_dino_res.flatten(2).softmax(dim=-1).reshape(b, 4, 73,73)
         mask_weight = masks.flatten(2).softmax(-1).reshape(b, 4, 256, 256)
         dino_feats = torch.einsum('blhw,chw->blc', mask_weight, dino_feats[0])
         #Predict semantic results with point classifier
         cls_scores = self.point_classifier(dino_feats)
-        # # import pdb;pdb.set_trace()
-        # import pdb;pdb.set_trace()
-        # proj_dino_feats = F.normalize(pooled_dino_feats, dim=-1)
-        #L, B, C -> L,B,D
-        # prototypes = self.dino_proj( self.prototypes.cuda()) 
-        # prototypes =self.prototypes.cuda()
-        # #L, B, D -> 1,1,L,D
-        # prototypes = prototypes.mean(dim=1).unsqueeze(0).unsqueeze(0)
-        # fg_sim = ((proj_dino_feats.unsqueeze(2) * prototypes)).sum(dim=-1) #80,16,4
-        # print(fg_sim.shape, cls_scores.shape,iou_pred.shape)
-        # bg_sim =  ((pooled_dino_feats.unsqueeze(2)  * self.bg_prototypes.mean(dim=0).unsqueeze(0).unsqueeze(0).cuda())).sum(dim=-1) #16,4
-        # bg_scores = torch.clamp(bg_sim + 0.4,0.01, .99)
-        # cls_scores = inverse_sigmoid(torch.clamp(fg_sim + 0.4,0.01, .99))#**0.7 * (1-bg_scores)**0.3)
-
-        # fg_embed = distance_embed(fg_sim)
-        # cls_embed = torch.cat([fg_embed,bg_embed.expand_as(fg_embed)],dim=-1)
-        # cls_scores = self.point_classifier(cls_embed).flatten(-2)
-        # sim_
-        # import pdb;pdb.set_trace()
         #Repeat IoU token and concat with mask token
         fused_token = torch.cat([iou_token_out.unsqueeze(1).repeat(1,4,1), mask_tokens_out], dim=-1)
         #Predict Redisudal IoU scores and add to default IoU scores

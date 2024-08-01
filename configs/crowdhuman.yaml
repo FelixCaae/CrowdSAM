@@ -6,7 +6,7 @@ data:
   dataset: "crowdhuman"
   dataset_root: "./dataset/crowdhuman"
   json_file: "./dataset/crowdhuman/midval_visible_100.json"
-  train_file: "./dataset/crowdhuman/train_visible.json"
+  train_file: "./dataset/crowdhuman/train_crowdhuman_10shot.json"
   odgt_file: "./dataset/crowdhuman/annotation_val.odgt"
 model:
   dino_repo: "./dinov2"
@@ -49,6 +49,7 @@ test:
   max_size: 1024
 
   #post processing
+  fuse_simmap: False
   min_mask_region_area: 100
   box_nms_thresh: 0.65
   stability_score_thresh: 0.8
@@ -56,5 +57,5 @@ test:
   pred_iou_thresh: 0.1
 
 vis:
-  vis_thresh: 0.5
+  vis_thresh: 0.6
 

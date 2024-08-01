@@ -4,24 +4,21 @@ import concurrent.futures
 import argparse
 import json
 import yaml
-def run_script(start_idx, end_idx, rank, save_dir, exec_file,config_file, options):
+import crowdsam.utils as utils
+def run_script(start_idx, end_idx, rank, exec_file,config_file):
     cmd = [
         
         # 'srun', '-c', '4', '--mem', '40G', '--gres=gpu:1', 
         'python', exec_file, 
         '--config_file', config_file,
         '--save_path', f'temp_result_{rank}.json', 
-        *options.split(), 
         '--start_idx', str(start_idx), 
         '--end_idx', str(end_idx),
-        '--local_rank', str(rank)
+        '--local_rank', str(rank),
     ]
     print(f"Running command: {' '.join(cmd)}")
     subprocess.run(cmd)
-def load_config(config_file):
-    with open(config_file, 'r') as file:
-        config = yaml.safe_load(file)
-    return config
+
 def merge_json(json_files):    # Initialize an empty list to hold merged data
     merged_data = []
     # Load and merge JSON files
@@ -64,17 +61,17 @@ def convert_to_coco(det_result, gt_js):
 
 def main():
     parser = argparse.ArgumentParser(description="Run multiple Python scripts concurrently")
-    parser.add_argument('--num_nodes', type=int,  default=4, help='Number of nodes to use')
-    parser.add_argument('--config_file', default='./configs/crowdhuman.yaml')
-    parser.add_argument('--options', type=str, default="", help='Additional options for the Python script')
+    parser.add_argument('-n','--num_nodes', type=int,  default=8, help='Number of nodes to use')
+    parser.add_argument('-c','--config_file', default='./configs/crowdhuman.yaml')
+    parser.add_argument('options', nargs=argparse.REMAINDER)
     args = parser.parse_args()
-    config = load_config(args.config_file)
-    
+    config = utils.load_config(args.config_file)
+    config = utils.modify_config(config, args.options)
+    print(yaml.dump(config, default_flow_style=False, default_style='' ))
     #load yaml
     gt_js = json.load(open(config['data']['json_file']))
     num_imgs = len(gt_js['images'])
     num_nodes = args.num_nodes
-    batch_size = num_imgs // num_nodes
     annot_file = config['data']['json_file']
     odgt_file = config['data']['odgt_file']
     exec_file = 'test.py'
@@ -85,11 +82,14 @@ def main():
     # Run the python scripts concurrently
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_nodes) as executor:
         futures = []
+        batch_size = num_imgs // num_nodes
         for i in range(num_nodes):
             start_idx = i * batch_size
-            end_idx = (i + 1) * batch_size
-            save_dir = f"."
-            futures.append(executor.submit(run_script, start_idx, end_idx, i,  save_dir, exec_file, config_file, options))
+            if i == num_nodes - 1:
+                end_idx = num_imgs
+            else:
+                end_idx = (i + 1) * batch_size 
+            futures.append(executor.submit(run_script, start_idx, end_idx, i, exec_file, config_file))
         # Wait for all futures to complete
         concurrent.futures.wait(futures)
 

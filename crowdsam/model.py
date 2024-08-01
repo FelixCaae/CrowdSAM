@@ -4,12 +4,12 @@ import torch.nn.functional as F
 
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
-import utils
 from PIL import Image
 import torch.nn as nn
 from loguru import logger
 import math
 from torchvision.ops.boxes import batched_nms, box_area
+import crowdsam.utils as utils
 from segment_anything_cs.utils.amg import (
     MaskData,
     batch_iterator,
@@ -51,6 +51,7 @@ class CrowdSAM():
         self.grid_size =config['test']['grid_size']
         self.pred_iou_thresh =  config['test']['pred_iou_thresh'] #iou_score filter
         # self.score_thresh = kwargs.get('score_thresh')
+        self.fuse_simmap = config['test']['fuse_simmap']
         self.stability_score_thresh = config['test']['stability_score_thresh']
         self.stability_score_offset = config['test']['stability_score_offset']
         self.box_nms_thresh = config['test']['box_nms_thresh']
@@ -277,19 +278,20 @@ class CrowdSAM():
                 max(self.box_nms_thresh, self.crop_nms_thresh),
             )
         #Implement joint classification scores here 
-        if self.train_free:
-            sim_map_high_res = F.interpolate(sim_map.unsqueeze(0).unsqueeze(0), self.image.shape[:2],mode='bilinear')[0,0].to(self.device)  
+        if self.fuse_simmap:
+            sim_map_high_res = F.interpolate(sim_map.unsqueeze(0).unsqueeze(0), self.image.shape[:2],mode='bilinear')[0,0].cuda()  
             # cls_scores = self.evaluate_cls_scores(data['masks'], sim_map_high_res, clf)
             cls_scores = []
             for mask in data['masks']:
                 if mask.sum() > 0:
                     cls_score = sim_map_high_res[mask].mean()
                 else:
-                    cls_score = -0.5
+                    cls_score = 0
+                # cls_score = (cls_score -cls_score.min())/ (cls_score.max() - cls_score.min())
                 cls_score = torch.clamp(cls_score + 0.5,0, 1)
                 cls_scores.append(cls_score)
             cls_scores = torch.tensor(cls_scores).to(self.device)
-            data['scores'] = data['iou_preds'] ** (1- self.apha)  * cls_scores ** self.alpha
+            data['scores'] = data['iou_preds'] ** 0.5  * cls_scores ** 0.5
         
         else:
             data['scores'] = data['iou_preds']
@@ -352,6 +354,7 @@ class CrowdSAM():
             multimask_output=True,
             return_logits=True,
         )[:3]
+        iou_preds = iou_preds * cls_scores.squeeze(2).sigmoid()
         indices = self.select_mask(masks, iou_preds)
         if not self.train_free:
             conf, categories = cls_scores.max(dim=-1)

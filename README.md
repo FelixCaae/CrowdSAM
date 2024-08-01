@@ -19,6 +19,7 @@ We recommend to use virtual enviroment, *e.g. Conda*,  for installation:
    cd crowdsam
    pip install -r requirements.txt
    git submodule update --init --recursive
+   pip install .
    ```
 3. Download 
     DINOv2(Vit-L) [checkpoint](https://dl.fbaipublicfiles.com/dinov2/dinov2_vitl14/dinov2_vitl14_pretrain.pth)

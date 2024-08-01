@@ -1,25 +1,20 @@
-
 import os
 import json
-import utils
 import itertools 
 import tqdm
-
+from PIL import Image
 import cv2
+import numpy as np
 import torch
+from loguru import logger
+
 import torch.nn.functional as F
 import torchvision.transforms as T
-
-import numpy as np
-import sys
-
 from matplotlib import pyplot as plt
-from PIL import Image
-# from utils import draw_mask,draw_point,draw_box
 from segment_anything_cs import sam_model_registry, SamPredictor
 from segment_anything_cs.utils.amg import batched_mask_to_box, remove_small_regions
-from loguru import logger
-import torchvision
+import crowdsam.utils as utils
+
 
 class CrowdHuman(torch.utils.data.Dataset):
     def __init__(self, dataset_root, annot_path, transform):
@@ -161,10 +156,6 @@ def compute_loss(low_res_masks:torch.Tensor,
     #B,C,H,W
     pred_boxes = batched_mask_to_box(low_res_masks>0) 
     pred_boxes = pred_boxes[torch.arange(num_masks), max_sim_ind] /256
-    # pred_boxes = pred_boxes.reshape(-1,3, 4)[torch.arange(num_masks), max_sim_ind] 
-    # box_delta = box_delta[torch.arange(num_masks), max_sim_ind]
-    # pred_boxes = utils.apply_box_offsets(pred_boxes, box_delta) 
-    # IoU_loss = 1- torch.diag(utils.generalized_box_iou(pred_boxes, target_boxes)).mean()
     #select the branch of lowest loss to propogate loss 
     dice_loss = utils.dice_loss(cls_logits, fg_mask).mean()
     #gneric prompt needs matching process
@@ -234,7 +225,6 @@ def train_loop(data_loader,  predictor, optimizer, max_steps=3000, n_shot=10, ba
         predictor.features = features.cuda()
         predictor.dino_feats = dino_features.cuda()
 
-        print(torch.cuda.max_memory_allocated())
         cls_logits = predictor.predict_fg_map((img_height, img_width))[0]
         cls_logits = cls_logits[:,:int(scale*img_height), :int(scale*img_width)]
 
@@ -289,7 +279,7 @@ def train_loop(data_loader,  predictor, optimizer, max_steps=3000, n_shot=10, ba
         optimizer.step()
         loss_dict_data = {k:round(float(v.data),3) for k,v in loss_dict.items()}
         
-        if step %10 == 0:
+        if step %100 == 0:
             output_str = f"step: {step}/{max_steps} "
             for k,v in loss_dict_data.items():
                 output_str += f"{k}: {v} "
@@ -318,7 +308,8 @@ if __name__ == '__main__':
     if model_arch == 'dino':
         print('usning dino as backbone')
         dino_repo = config['model']['dino_repo']
-        model = torch.hub.load(dino_repo, config['model']['dino_model'],source='local').cuda()
+        model = torch.hub.load(dino_repo, config['model']['dino_model'],source='local',pretrained=False).cuda()
+        model.load_state_dict(torch.load(config['model']['dino_checkpoint'],weights_only=True))
     elif model_arch == 'resnet':
         print('usning resnet-50 as backbone')
         r50 = torchvision.models.resnet50(pretrained=True)
