@@ -84,7 +84,7 @@ python tools/batch_eval.py
 This will run the evaluation script on the test dataset and output the results.
 ##  📊 Qualitative Results
 ![demo1](figures/demo_1.jpg)
-![demo1](figures/demo_2.jpg)
+![demo2](figures/demo_2.jpg)
 
 ## Acknowlegement
 We build our project based on the segment-anything and dinov2.
