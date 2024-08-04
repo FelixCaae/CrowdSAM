@@ -23,8 +23,8 @@ train:
   default: 0
   n_shot: 10
   seed: 1
-  samples_per_batch: 15
-  neg_factor: 3
+  samples_per_batch: 30
+  neg_factor: 1
   steps: 2000
   lr: 0.00001
   optimizer: "adamw"
@@ -44,7 +44,7 @@ test:
 
   #eps
   max_prompts: 500
-  filter_thresh: 0.5
+  filter_thresh: 0.7
   points_per_batch: 32
   mask_selection: "max_iou"
   max_size: 1024

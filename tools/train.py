@@ -143,13 +143,6 @@ def predict_torch(
     #B,C,H,W -> B,H,W,C for MLP to process
     return low_res_masks, iou_predictions, cls_scores
 
-def clip_grads(params,  max_norm=0.1):    
-    params = list(filter(lambda p: p.requires_grad and p.grad is not None, params))
-    if len(params) > 0:
-        return torch.nn.utils.clip_grad_norm_(
-            parameters=params,
-            max_norm  = max_norm,
-        )
 
 @logger.catch()
 def compute_loss(low_res_masks:torch.Tensor, 
@@ -209,17 +202,18 @@ def compute_loss(low_res_masks:torch.Tensor,
         logger.debug(f"Loss dict: {loss_dict}")
 
     return loss_dict
-def train_loop(data_loader,  predictor, optimizer, max_steps=3000, neg_factor=3, n_shot=10, batch_sample_num=20, clip_grad=0.1, debug=False):
+def train_loop(data_loader,  predictor, optimizer, max_steps=3000, neg_factor=3, n_shot=10, pos_sample=20, clip_grad=0.1, debug=False):
+    neg_sample = int(neg_factor * pos_sample)
     
     cache = cache_feature(data_loader,predictor, n_shot, debug=debug)    
-    
     for step in range(0, max_steps):
         #Extract sample according to step
         sample_idx = step%len(cache)
         features, dino_features, _,  (img_height, img_width), target_masks = cache[sample_idx]
-        num_select_sample = min(batch_sample_num, len(target_masks))        
+        # num_select_sample = min(pos_sample, len(target_masks))    
+            
         #Shuffule and sample the targets to avoid OOM  
-        sample_ind = np.random.choice(np.arange(len(target_masks)), num_select_sample,replace=False)
+        sample_ind = np.random.choice(np.arange(len(target_masks)), pos_sample,replace=True)
         fg_mask = target_masks.any(dim=0)#.cpu()
         target_masks = target_masks[sample_ind,0]
         #Sample positive point prompts
@@ -233,7 +227,7 @@ def train_loop(data_loader,  predictor, optimizer, max_steps=3000, neg_factor=3,
         #Sample negative point prompts
         scale = min(256/ img_height, 256/ img_width)
         neg_coords = (~fg_mask)[0,:int(scale*img_height), :int(scale*img_width)].nonzero()[:,[1,0]]
-        neg_point_coords = neg_coords[np.random.choice(np.arange(len(neg_coords)), num_select_sample * neg_factor)].view(-1,2)
+        neg_point_coords = neg_coords[np.random.choice(np.arange(len(neg_coords)),neg_sample,replace=False)].view(-1,2)
         
         #Cat the prompts and convert variables to cuda
         point_coords = torch.cat([pos_point_coords, neg_point_coords], dim=0)
@@ -256,15 +250,14 @@ def train_loop(data_loader,  predictor, optimizer, max_steps=3000, neg_factor=3,
                                  cls_logits,
                                 target_masks= target_masks,
                                 fg_mask = fg_mask,
-                                num_pos_sample=num_select_sample,
+                                num_pos_sample=pos_sample,
                                 debug = debug)
 
         total_loss = sum([v for k,v in loss_dict.items()])
         total_loss.backward()
         torch.nn.utils.clip_grad_norm_(predictor.model.parameters(), clip_grad)
         optimizer.step()
-        optimizer.zero_grad()  # Add this to reset gradients after update
-
+        optimizer.zero_grad()  
         loss_dict_data = {k:round(float(v.data),3) for k,v in loss_dict.items()}
         
         if step %100 == 0:
