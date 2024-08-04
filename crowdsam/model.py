@@ -190,16 +190,11 @@ class CrowdSAM():
         return data
     
     def _process_crop(self, image, crop_box):
-        #===============> Step 5. Re-extract features 
-        #Notice: self.image is a cropped image
-        # crop_box = self.shrink_crop_box(crop_box, sim_map, margin=100)
-        # self.adapted_boxes.append(crop_box)
+    
         self.crop_image(image, crop_box)
         self.predictor.set_image(self.image)
         orig_h, orig_w = self.orig_image.shape[:2]
         img_size = torch.tensor(self.image.shape[:2])
-        
-
         if not self.train_free:
             # dino_feats = self.predictor.dino_feats
             feat_size = (img_size * min(self.grid_size/img_size)).int()         
@@ -208,7 +203,6 @@ class CrowdSAM():
             sim_map = sim_map.sigmoid().max(dim=1)[0]
             sim_map = sim_map[0,:feat_size[0], :feat_size[1]]
             sim_thresh =self.pos_sim_thresh
-        
         else:
         #used when  dino_feats = self.predictor.dino_feats
             transform = T.Compose([
@@ -230,28 +224,26 @@ class CrowdSAM():
         logger.debug(f'len points {len(points_for_image)}')
         #No change here
         data = MaskData()
-        red_mask = torch.zeros(*img_size, dtype=torch.bool)
+        occupy_mask = torch.zeros(*img_size, dtype=torch.bool)
         
         def efficient_batch_iterator(batch_size: int, points):
-            ind = np.arange(len(points))
-            rand_ind = np.random.choice(ind, len(ind), replace=False)
-            points = points[rand_ind]
-            cum = 0
-            while len(points)>0 and cum < self.max_prompts:
+            points = points.astype('int')
+            np.random.shuffle(points)
+            count = 0
+            while len(points)>0 and count < self.max_prompts:
                 batch_size = min(len(points), batch_size)
                 sel_pts= points[:batch_size]
-                cum += len(sel_pts)
-                yield sel_pts
                 points = points[batch_size:]
-                keep = (~red_mask[points[:,1].astype('int'), points[:,0].astype('int')]).numpy()
+                yield sel_pts
+                keep = (~occupy_mask[points[:,1], points[:,0]]).numpy()
                 points = points[keep]
+                count += batch_size
                 
         for points in efficient_batch_iterator(self.points_per_batch, points_for_image):
             if len(points) ==0:
                 continue
             batch_data = self._process_batch(points, self.predictor.original_size, crop_box)
-
-            red_mask = (batch_data['masks'][batch_data['iou_preds']> self.filter_thresh]).any(0).cpu()
+            occupy_mask = (batch_data['masks'][batch_data['iou_preds']> self.filter_thresh]).any(0).cpu()
             data.cat(batch_data)
             del batch_data
         self.predictor.reset_image()
@@ -356,6 +348,7 @@ class CrowdSAM():
         )[:3]
         iou_preds = iou_preds * cls_scores.squeeze(2).sigmoid()
         indices = self.select_mask(masks, iou_preds)
+
         if not self.train_free:
             conf, categories = cls_scores.max(dim=-1)
             masks, iou_preds, points, categories = masks[indices], iou_preds[indices], torch.as_tensor(points.repeat(1, axis=0)), categories[indices]
