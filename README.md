@@ -53,7 +53,7 @@ We recommend to use virtual enviroment, *e.g. Conda*,  for installation:
 ## Data Preparation
 ### 1. CrowdHuman
 
-Download the CrowdHuman dataset from the [official website](https://www.crowdhuman.org/download.html). *Note that we only need the CrowdHuman_val.zip* and *annotation_val.odgt*. 
+Download the CrowdHuman dataset from the [official website](https://www.crowdhuman.org/download.html). *Note that we only need the CrowdHuman_val.zip* and *annotation_val.odgt*. For training data, we have prepared it in the crowdhuman_train directory and please copy the files into ./dataset/crowdhuman before training.
 Extract and place the downdloaded zip files in the `dataset` directory and it should look like this:
 
 ```
@@ -84,7 +84,7 @@ python tools/batch_eval.py --config_file ./configs/config.yaml -n num_gpus
 
 To visualize the outputs, use the following command:
 ```bash
-python tools/batch_eval.py --config_file ./configs/config.yaml
+python tools/test.py --config_file ./configs/config.yaml --visualize
 ```
 
 This will run the evaluation script on the test dataset and output the results.
