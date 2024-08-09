@@ -70,19 +70,20 @@ Run the script to convert odgt file to json file.
 python tools/crowdhuman2coco.py -o annotation_val.odgt -v -s val_visible.json -d dataset/crowdhuman
 ```
 ##  How to use
-Our model configs are written with yaml in the *configs* directory. 
-To start training the model, run the following command:
+1.  To start training the model, run the following command:
 ```bash
 python train.py --config_file ./configs/config.yaml
 ```
-Make sure to update the `config.yaml` file with the appropriate paths and parameters as needed.
+Our model configs are written with yaml in the *configs* directory. Make sure to update the `config.yaml` file with the appropriate paths and parameters as needed.
 
-To evaluate the model, we recommend to use the following command for batch evaluation:
+We prepare a pretrained adapter weights for CrowdHuman [here](https://drive.google.com/file/d/18034Wbd_Q01W0eBxlOuh4VzuOIob_eqy/view?usp=sharing) 
+
+2. To evaluate the model, we recommend to use the following command for batch evaluation:
 ```bash
 python tools/batch_eval.py --config_file ./configs/config.yaml -n num_gpus
 ```
 
-To visualize the outputs, use the following command:
+3. To visualize the outputs, use the following command:
 ```bash
 python tools/test.py --config_file ./configs/config.yaml --visualize
 ```
