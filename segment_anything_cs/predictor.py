@@ -113,7 +113,8 @@ class SamPredictor:
     def predict_fg_map(self, img_size=None):
         #dino_feats: B,H,W,C
         dino_feats = self.model.mask_decoder.dino_proj(self.dino_feats)
-        # dino_feats = torch.nn.functional.interpolate(dino_feats.permute(0,3,1,2), (73, 73))
+        # dino_feats = torch.nn.functional.interpolate(dino_feats, (256, 256))
+        # dino_feats = torch.nn.functional.interpolate(dino_feats.permute(0,3,1,2), (256, 256)).permute(0,2,3,1)
         cls_logits = self.model.mask_decoder.point_classifier(dino_feats).permute(0,3,1,2)#[:,:,:,0]
         cls_logits = torch.nn.functional.interpolate(cls_logits, (256,256), mode='bilinear')
         # #cls_logits:B,H,W

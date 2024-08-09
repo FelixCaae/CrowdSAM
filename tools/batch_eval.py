@@ -8,7 +8,6 @@ import crowdsam.utils as utils
 def run_script(start_idx, end_idx, rank, exec_file,config_file, options):
     cmd = [
         
-        # 'srun', '-c', '4', '--mem', '40G', '--gres=gpu:1', 
         'python', exec_file, 
         '--config_file', config_file,
         '--save_path', f'temp_result_{rank}.json', 

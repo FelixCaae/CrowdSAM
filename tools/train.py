@@ -243,7 +243,6 @@ def train_loop(data_loader,  predictor, optimizer, max_steps=3000, neg_factor=3,
 
         cls_logits = predictor.predict_fg_map((img_height, img_width))[0]
         cls_logits = cls_logits[:,:int(scale*img_height), :int(scale*img_width)]
-
         low_res_masks, iou_predictions, cls_scores = predict_torch(predictor, prompt_coords_trans, prompt_labels)
         loss_dict = compute_loss(low_res_masks,
                                  iou_predictions * cls_scores.sigmoid()[:,:,0], 

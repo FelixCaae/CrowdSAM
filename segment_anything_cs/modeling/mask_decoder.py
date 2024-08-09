@@ -115,8 +115,7 @@ class MaskDecoder(nn.Module):
           torch.Tensor: batched predicted masks
           torch.Tensor: batched predictions of mask quality
         """
-        # import pdb;pdb.set_trace()
-        # image_embeddings = image_embeddings + self.feat_proj(image_embeddings.permute(0,2,3,1)).permute(0,3,1,2)
+   
         masks, iou_pred, class_scores = self.predict_masks(
             image_embeddings=image_embeddings,
             image_pe=image_pe,
@@ -128,7 +127,7 @@ class MaskDecoder(nn.Module):
         )
         # Select the correct mask or masks for output
         if multimask_output:
-            mask_slice = slice(1, None)
+            mask_slice = slice(0, None)
         else:
             mask_slice = slice(0, 1)
         masks = masks[:, mask_slice, :, :]
@@ -136,7 +135,6 @@ class MaskDecoder(nn.Module):
         class_scores = class_scores[:, mask_slice]
         # Prepare output
         return  masks, iou_pred, class_scores
-
     def predict_masks(
         self,
         image_embeddings: torch.Tensor,
@@ -184,6 +182,7 @@ class MaskDecoder(nn.Module):
         # masked_feat = image_embeddings[masks].mean(dim)
         # Generate mask quality predictions
         iou_pred = self.iou_prediction_head(iou_token_out)
+
         #Use decoded masks to pool related region of dino features
         dino_feats = self.dino_proj(dino_feats)
         dino_feats = F.interpolate(dino_feats.permute(0,3,1,2), (256,256), mode='bilinear')
