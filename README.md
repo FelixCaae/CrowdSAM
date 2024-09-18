@@ -53,7 +53,7 @@ We recommend to use virtual enviroment, *e.g. Conda*,  for installation:
 ## Data Preparation
 ### 1. CrowdHuman
 
-Download the CrowdHuman dataset from the [official website](https://www.crowdhuman.org/download.html). *Note that we only need the CrowdHuman_val.zip* and *annotation_val.odgt*. 
+Download the CrowdHuman dataset from the [official website](https://www.crowdhuman.org/download.html). *Note that we only need the CrowdHuman_val.zip* and *annotation_val.odgt*. For training data, we have prepared it in the crowdhuman_train directory and please copy the files into ./dataset/crowdhuman before training.
 Extract and place the downdloaded zip files in the `dataset` directory and it should look like this:
 
 ```
@@ -70,21 +70,22 @@ Run the script to convert odgt file to json file.
 python tools/crowdhuman2coco.py -o annotation_val.odgt -v -s val_visible.json -d dataset/crowdhuman
 ```
 ##  How to use
-Our model configs are written with yaml in the *configs* directory. 
-To start training the model, run the following command:
+1.  To start training the model, run the following command:
 ```bash
 python train.py --config_file ./configs/config.yaml
 ```
-Make sure to update the `config.yaml` file with the appropriate paths and parameters as needed.
+Our model configs are written with yaml in the *configs* directory. Make sure to update the `config.yaml` file with the appropriate paths and parameters as needed.
 
-To evaluate the model, we recommend to use the following command for batch evaluation:
+We prepare a pretrained adapter weights for CrowdHuman [here](https://drive.google.com/file/d/18034Wbd_Q01W0eBxlOuh4VzuOIob_eqy/view?usp=sharing) 
+
+2. To evaluate the model, we recommend to use the following command for batch evaluation:
 ```bash
 python tools/batch_eval.py --config_file ./configs/config.yaml -n num_gpus
 ```
 
-To visualize the outputs, use the following command:
+3. To visualize the outputs, use the following command:
 ```bash
-python tools/batch_eval.py --config_file ./configs/config.yaml
+python tools/test.py --config_file ./configs/config.yaml --visualize
 ```
 
 This will run the evaluation script on the test dataset and output the results.
