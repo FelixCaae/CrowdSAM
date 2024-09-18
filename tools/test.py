@@ -12,7 +12,7 @@ from crowdsam.utils import (load_img_and_annotation, setup_logger,
 import argparse
 def envrion_init():
     parser = argparse.ArgumentParser(description="CrowdSAM argparser")
-    parser.add_argument('--mode', type=str, choices=['seg', 'ref_only'], default='seg')
+    parser.add_argument('--mode', type=str, choices=['seg', 'bbox'], default='seg')
     #data related
     parser.add_argument('--start_idx',type=int, default=0)
     parser.add_argument('--end_idx',type=int, default=-1) # -1 represents using all images
@@ -42,6 +42,7 @@ if __name__ == '__main__':
     n_class, class_names = data_meta[config['data']['dataset']][1:]
     if 'cuda' in config['environ']['device']:
         torch.cuda.set_device(args.local_rank) 
+        print(f'set device cuda:{args.local_rank}')
         config['environ']['device'] =  f'cuda:{args.local_rank}'
     #===========>configure model
     model = CrowdSAM(config, logger)
@@ -68,7 +69,7 @@ if __name__ == '__main__':
         instance_dict = {'image_id':image_id,  'num_gt':len(gt_boxes)-1}
         # instance_dict.update({'AP':AP, 'Recall':recall, })    
         instance_dict.update({k:v.tolist() for k,v in result.items() if k in ['boxes', 'scores', 'categories'] })
-        instance_dict.update({k:v for k,v in result.items() if k in ['segmentations'] })
+        instance_dict.update({k:v for k,v in result.items() if k in ['rles'] })
         # save detection results in json 
         output_content.append(instance_dict)
         logger.debug(f'process for image:{id_} is done')
@@ -77,7 +78,7 @@ if __name__ == '__main__':
             save_path = os.path.join(config['environ']['output_dir'], f'{id_}.jpg')
             result['gt_boxes'] = gt_boxes
             FP_list, FN_list = evaluate_boxes(result['boxes'], result['scores'], gt_boxes, 0.5)[2:]
-            visualize_result(image, result,  class_names, save_path, conf_thresh= config['vis']['vis_thresh'], FP_ind=FP_list, FN_ind=FN_list)#,  FP_ind = FP_ind, FN_ind = FN_ind)
+            visualize_result(image, result,  class_names, save_path, conf_thresh= config['vis']['vis_thresh'], FP_ind=FP_list, FN_ind=FN_list, vis_masks=args.mode=='seg')#,  FP_ind = FP_ind, FN_ind = FN_ind)
         del result        
 
     if args.save_path == "":

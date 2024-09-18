@@ -17,7 +17,6 @@ from PIL import Image
 from matplotlib import pyplot as plt
 from .coco_names import coco_classes
 from itertools import product
-
 import argparse
 import yaml
 # from reliability.Distributions import Weibull_Distribution,Mixture_Model
@@ -57,26 +56,46 @@ def modify_config(config_file, options):
             d = d.setdefault(k, {})
         d[keys[-1]] = convert_value(value)
     return config_file
+def coco_decode_rle(encoded_rle: Dict[str, Any]) -> Dict[str, Any]:
+    from pycocotools import mask as mask_utils  # type: ignore
 
-def visualize_result(image, result, class_names, save_path, conf_thresh=0.001, FP_ind = None, FN_ind = None):
-    # plt.gca().set_title(f'gt boxes #GT {len(gt_boxes)}')
+    # Decode the RLE
+    rle = {
+        'counts': encoded_rle['counts'].encode('utf-8'),  # Convert back to bytes
+        'size': encoded_rle['size']
+    }
+    
+    # Decode the RLE to a binary mask
+    binary_mask = mask_utils.decode(rle)
+    return binary_mask
+def visualize_result(image, result, class_names, save_path,  vis_masks=True, conf_thresh=0.001, FP_ind = None, FN_ind = None):
+    #convert image from PIL to numpy 
     image = np.array(image)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    # TP_ind = np.setdiff1d(np.arange(len(result['boxes'])), FP_ind)
+
+    #decode masks here    
+    if vis_masks:
+        masks = torch.tensor(np.array([coco_decode_rle(rles) for rles in result['rles']]))
+        crop_box, [orig_h, orig_w] = result['rles_info']
+        masks = uncrop_masks(masks, crop_box, orig_h, orig_w).numpy()
+
+    #iterate through all boxes and masks
     for i in range(len(result['boxes'])):
         box = result['boxes'][i]
-        # mask = np.array(result['masks'][i])
         score =round(float(result["scores"][i]),3)
         class_id = result['categories'][i]
         if score  < conf_thresh:
             continue
-        color = [255,255,0] #if i in FP_ind else  [255,255,0]
-        if FP_ind is not None:
-            if i in FP_ind:
-                color = [0,0,255]
+        #draw red box for FP
+        if FP_ind is not None and i in FP_ind:
+            color = [0,0,255]
+        else:
+            color = [255,255,0] 
         class_name =class_names[class_id+1]
         image = draw_box(image, box,f"{class_name}:{score}",color=color)
-        # image = draw_mask(image, mask, random_color=False)
+        if vis_masks:
+            image = draw_mask(image, masks[i], random_color=True)
+    #if FN given, draw FN box in blue
     if FN_ind is not None:    
         for i in FN_ind:
             image = draw_box(image, result['gt_boxes'][i], color=[255,0,0])

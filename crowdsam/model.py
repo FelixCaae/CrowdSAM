@@ -33,7 +33,7 @@ class CrowdSAM():
         dino_model =  torch.hub.load(config['model']['dino_repo'],
                                     config['model']['dino_model'],
                                     source='local',pretrained=False).to(self.device)
-        dino_model.load_state_dict(torch.load(config['model']['dino_checkpoint'], weights_only=True))
+        dino_model.load_state_dict(torch.load(config['model']['dino_checkpoint']))
         self.predictor =self.load_sam_model(config['model']['sam_model'], 
                                             config['model']['sam_arch'],
                                             config['model']['sam_checkpoint'], 
@@ -90,7 +90,7 @@ class CrowdSAM():
             from segment_anything_cs import sam_model_registry, SamPredictor
             # from per_segment_anything_person_specific import sam_model_registry,SamPredictor
             sam = sam_model_registry[sam_model](checkpoint=sam_checkpoint,n_class=n_class)
-            sam.mask_decoder.load_state_dict(torch.load(sam_adapter_checkpoint,weights_only=True),strict=False)
+            sam.mask_decoder.load_state_dict(torch.load(sam_adapter_checkpoint),strict=False)
             predictor = SamPredictor(sam, dino_model)
 
         elif sam_arch =='sam_hq':
@@ -182,9 +182,9 @@ class CrowdSAM():
             data['boxes'] = torch.zeros(0, 4)
             data['scores'] = torch.zeros(0, 4)
         if 'rles' in data._stats:
-            data["segmentations"] = [coco_encode_rle(rle) for rle in data["rles"]] 
+            data["rles"] = [coco_encode_rle(rle) for rle in data["rles"]] 
         else:
-            data['segmentations'] = []
+            data['rles'] = []
 
         data.to_numpy()    
         return data
@@ -288,8 +288,9 @@ class CrowdSAM():
         else:
             data['scores'] = data['iou_preds']
             
-        if self.output_rles:
-            data["rles"] = mask_to_rle_pytorch((utils.uncrop_masks(data["masks"], crop_box, orig_h, orig_w)))
+        # data["rles"] = mask_to_rle_pytorch((utils.uncrop_masks(data["masks"], crop_box, orig_h, orig_w)))
+        data['rles'] = mask_to_rle_pytorch(data["masks"])
+        data['rles_info'] = [crop_box,[orig_h, orig_w]]
         del data['masks']
             
         #Implement the box_offsets herehere 
@@ -347,7 +348,7 @@ class CrowdSAM():
             return_logits=True,
         )[:3]
         # iou_preds = iou_preds * cls_scores.sigmoid().squeeze(2)
-        iou_preds = torch.clamp(iou_preds, 0.)  **0.5 * cls_scores.squeeze(2).sigmoid() ** 0.5
+        iou_preds = torch.clamp(iou_preds, 0.) * cls_scores.squeeze(2).sigmoid() 
         indices = self.select_mask(masks, iou_preds)
         if not self.train_free:
             conf, categories = cls_scores.max(dim=-1)

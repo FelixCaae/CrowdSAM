@@ -31,7 +31,7 @@ train:
   weight_decay: 0.0001
   save_path: "adapter_weights/10_shot.pth"
 test:
-  output_rles: False
+  output_rles: True
   #cropping 
   crop_n_layers: 0
   crop_nms_thresh: 0.7
