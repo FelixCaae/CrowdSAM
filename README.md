@@ -88,6 +88,12 @@ python tools/batch_eval.py --config_file ./configs/config.yaml -n num_gpus
 python tools/test.py --config_file ./configs/config.yaml --visualize
 ```
 
+4. To run demo on your images, use the following command:
+```bash
+python tools/demo.py --config_file ./configs/config.yaml --input target_directory
+```
+
+
 This will run the evaluation script on the test dataset and output the results.
 ##  📊 Qualitative Results
 ![qual](figures/qual_comp.png)

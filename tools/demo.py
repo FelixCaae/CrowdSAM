@@ -14,11 +14,11 @@ from crowdsam.utils import (load_img_and_annotation, setup_logger,
 import argparse
 def envrion_init():
     parser = argparse.ArgumentParser(description="CrowdSAM argparser")
-    parser.add_argument('--mode', type=str, choices=['seg', 'bbox'], default='seg')
+    parser.add_argument('--mode', type=str, choices=['seg', 'bbox'], default='seg',help='bbox only show box and seg will show masks')
     #data related
     parser.add_argument('-c','--config_file', type=str, default='./configs/crowdhuman.yaml')
-    parser.add_argument('-i', '--input', help="Input of demo, it could be a directory of images, a single image or a glob pattern such as 'test_dir/*.jpg'", type=str)
-    parser.add_argument('-o', '--output', help='Output path of demo', type=str, default='demo_out')
+    parser.add_argument('-i', '--input', default = 'crowdhuman_train/Images', help="Input of demo, it could be a directory of images, a single image or a glob pattern such as 'test_dir/*.jpg'", type=str)
+    parser.add_argument('-o', '--output', help='Output path of demo, results will be saved as a json file', type=str, default='demo_out')
     args = parser.parse_args()
     configs = load_config(args.config_file)
     os.makedirs(args.output, exist_ok=True)
