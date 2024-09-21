@@ -1,5 +1,5 @@
 
-# Crowd-SAM: SAM as a Smart Annotator for Object Detection in Crowded Scenes [ECCV2024]
+# Crowd-SAM: SAM as a Smart Annotator for Object Detection in Crowded Scenes
 <p align="center">
     <img src="https://i.imgur.com/waxVImv.png" alt="Oryx Video-ChatGPT">
 </p>
