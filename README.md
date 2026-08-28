@@ -1,4 +1,5 @@
 
+
 # Crowd-SAM: SAM as a Smart Annotator for Object Detection in Crowded Scenes
 <p align="center">
     <img src="https://i.imgur.com/waxVImv.png" alt="Oryx Video-ChatGPT">
@@ -39,8 +40,8 @@ We recommend to use virtual enviroment, *e.g. Conda*,  for installation:
 
 2. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/crowd-sam.git
-   cd crowdsam
+   git clone https://github.com/FelixCaae/CrowdSAM.git
+   cd CrowdSAM
    pip install -r requirements.txt
    git submodule update --init --recursive
    pip install .
